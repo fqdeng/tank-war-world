@@ -138,10 +138,16 @@ func _on_fire_received(peer_id: int, _fire_msg) -> void:
         return
     state.ammo -= 1
     state.reload_remaining = Constants.TANK_RELOAD_S
+    # Use the latest client-reported aim (not state.*) so the shell direction matches
+    # what the client was looking at at fire time — fixes the 1-tick desync where the
+    # server applies input AFTER the FIRE signal handler runs.
+    var latest_inp: Dictionary = _latest_input.get(pid, {})
+    var aim_turret_yaw: float = float(latest_inp.get("turret_yaw", state.turret_yaw))
+    var aim_gun_pitch: float = float(latest_inp.get("gun_pitch", state.gun_pitch))
     var muzzle_offset := 2.5
     var origin: Vector3 = state.pos + Vector3(0, 1.6, 0)
-    var world_turret_yaw: float = state.yaw + state.turret_yaw
-    var velocity: Vector3 = Ballistics.initial_velocity(world_turret_yaw, state.gun_pitch, Constants.SHELL_INITIAL_SPEED)
+    var world_turret_yaw: float = state.yaw + aim_turret_yaw
+    var velocity: Vector3 = Ballistics.initial_velocity(world_turret_yaw, aim_gun_pitch, Constants.SHELL_INITIAL_SPEED)
     origin += velocity.normalized() * muzzle_offset
     var shell = _shell_sim.spawn(pid, origin, velocity)
     var msg := Messages.ShellSpawned.new()

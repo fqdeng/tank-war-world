@@ -35,7 +35,7 @@ const HITSCAN_MAX_RANGE_M: float = 1500.0
 const RESPAWN_COOLDOWN_S: float = 10.0
 
 # --- Ballistics (Plan 02) ---
-const SHELL_INITIAL_SPEED: float = 280.0  # m/s — low enough for pronounced ballistic drop
+const SHELL_INITIAL_SPEED: float = 200.0  # m/s — slow for pronounced ballistic drop
 const GRAVITY: float = 9.8
 const SHELL_MAX_LIFETIME_S: float = 8.0
 const SHELL_STEP_SUBDIVISIONS: int = 4  # per-tick sub-steps for swept collision
