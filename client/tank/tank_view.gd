@@ -92,9 +92,7 @@ func _build_mesh() -> void:
     var gradient := Gradient.new()
     gradient.add_point(0.0, Color(0.65, 0.56, 0.42, 0.75))
     gradient.add_point(1.0, Color(0.65, 0.56, 0.42, 0.0))
-    var grad_tex := GradientTexture1D.new()
-    grad_tex.gradient = gradient
-    _dust.color_ramp = grad_tex
+    _dust.color_ramp = gradient
     var dust_mesh := SphereMesh.new()
     dust_mesh.radius = 0.28
     dust_mesh.height = 0.56
