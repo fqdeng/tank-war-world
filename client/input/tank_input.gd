@@ -10,8 +10,12 @@ var _enabled: bool = false
 var _fire_latched: bool = false
 var _turret_yaw: float = 0.0
 var _gun_pitch: float = 0.0
-var _mouse_sens_yaw: float = 0.003
-var _mouse_sens_pitch: float = 0.002
+var _mouse_sens_yaw: float = 0.0015
+var _mouse_sens_pitch: float = 0.001
+var _scope_zoom_factor: float = 1.0  # divides sensitivity while scoped (1.0 = third-person)
+
+func set_scope_zoom(z: float) -> void:
+    _scope_zoom_factor = max(1.0, z)
 
 func set_enabled(v: bool) -> void:
     _enabled = v
@@ -22,8 +26,8 @@ func _input(ev: InputEvent) -> void:
     if not _enabled:
         return
     if ev is InputEventMouseMotion:
-        _turret_yaw += -ev.relative.x * _mouse_sens_yaw
-        _gun_pitch += -ev.relative.y * _mouse_sens_pitch
+        _turret_yaw += -ev.relative.x * _mouse_sens_yaw / _scope_zoom_factor
+        _gun_pitch += -ev.relative.y * _mouse_sens_pitch / _scope_zoom_factor
         _gun_pitch = clamp(_gun_pitch, deg_to_rad(-5.0), deg_to_rad(18.0))
     elif ev is InputEventMouseButton:
         if ev.button_index == MOUSE_BUTTON_LEFT and ev.pressed:

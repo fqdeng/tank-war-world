@@ -159,16 +159,24 @@ func _toggle_scope() -> void:
         _scope_cam.current = true
         _scope_overlay.visible = true
         _hud.visible = false
+        # Hide own tank meshes so the barrel doesn't occlude the scope view.
+        if _tanks.has(_my_player_id):
+            _tanks[_my_player_id].visible = false
+        _input.set_scope_zoom(float(_scope_cam.current_zoom()))
     else:
         _camera.current = true
         _scope_overlay.visible = false
         _hud.visible = true
+        if _tanks.has(_my_player_id):
+            _tanks[_my_player_id].visible = true
+        _input.set_scope_zoom(1.0)
 
 func _on_zoom_cycled(dir: int) -> void:
     if _scope_cam == null or not _in_scope:
         return
     _scope_cam.cycle_zoom(dir)
     _scope_overlay.get_node("Reticle").set_zoom(_scope_cam.current_zoom())
+    _input.set_scope_zoom(float(_scope_cam.current_zoom()))
 
 func _ensure_scope_cam() -> void:
     if _scope_cam != null:
