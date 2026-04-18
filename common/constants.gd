@@ -27,6 +27,7 @@ const TANK_TURN_RATE_DPS: float = 45.0
 const TANK_FIRE_DAMAGE: int = 260
 const TANK_RELOAD_S: float = 2.5
 const TANK_AMMO_CAPACITY: int = 24
+const TANK_AMMO_REGEN_S: float = 2.0  # seconds per +1 ammo, until capacity
 
 # Hitscan (Plan 01 placeholder for parabolic ballistics)
 const HITSCAN_MAX_RANGE_M: float = 1500.0

@@ -180,7 +180,12 @@ func _ensure_scope_cam() -> void:
     if barrel == null:
         return
     _scope_cam = ScopeCam.new()
-    _scope_cam.position = Vector3(0, 0.5, -0.5)
+    # Place the scope cam along the barrel's line-of-fire, slightly behind the shell
+    # spawn point so the shell emerges centered on the crosshair.
+    # Shell origin in tank space = (0, 1.6, -2.5) at rest; _barrel origin in tank
+    # space = (0, 1.4, -1.1). So cam local (relative to _barrel) = (0, 0.2, -1.0)
+    # lands at tank (0, 1.6, -2.1), 0.4 m behind shell origin on the same axis.
+    _scope_cam.position = Vector3(0, 0.2, -1.0)
     barrel.add_child(_scope_cam)
     _scope_overlay.get_node("Reticle").set_zoom(_scope_cam.current_zoom())
 

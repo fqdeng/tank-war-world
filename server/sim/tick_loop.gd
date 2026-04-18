@@ -67,6 +67,14 @@ func _step_tick(dt: float) -> void:
         state.gun_pitch = float(inp.get("gun_pitch", state.gun_pitch))
         if state.reload_remaining > 0.0:
             state.reload_remaining = max(0.0, state.reload_remaining - dt)
+        # Ammo regeneration up to capacity
+        if state.ammo < Constants.TANK_AMMO_CAPACITY:
+            state.ammo_regen_accum += dt
+            while state.ammo_regen_accum >= Constants.TANK_AMMO_REGEN_S and state.ammo < Constants.TANK_AMMO_CAPACITY:
+                state.ammo_regen_accum -= Constants.TANK_AMMO_REGEN_S
+                state.ammo += 1
+        else:
+            state.ammo_regen_accum = 0.0
 
     _shell_sim.tick(dt)
 
