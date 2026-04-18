@@ -126,6 +126,7 @@ func _handle_connect_ack(msg) -> void:
     _input.set_enabled(true)
     _hud.set_status("CONNECTED")
     _hud.set_player_id(msg.player_id)
+    _hud.radar.set_my_team(msg.team)
 
 func _handle_snapshot(msg) -> void:
     var now_ms: int = Time.get_ticks_msec()
@@ -231,6 +232,10 @@ func _ensure_view(pid: int, team: int, is_local: bool) -> void:
     _tanks[pid] = v
 
 func _handle_shell_spawned(msg) -> void:
+    # Radar ping: show the shooter's tank pos for 5s
+    if _hud != null and _tanks.has(msg.shooter_id):
+        var shooter = _tanks[msg.shooter_id]
+        _hud.radar.ping_shot(msg.shooter_id, shooter.position, shooter.team)
     var mesh := MeshInstance3D.new()
     var sm := SphereMesh.new()
     sm.radius = 0.2
@@ -311,9 +316,10 @@ func _process(_delta: float) -> void:
     if _prediction != null and _tanks.has(_my_player_id):
         var s = _prediction.state()
         _tanks[_my_player_id].apply_predicted(s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp)
-        # Base HUD always shows ammo + reload
+        # Base HUD always shows ammo + reload + radar self pose
         _hud.set_ammo(s.ammo)
         _hud.set_reload(s.reload_remaining, Constants.TANK_RELOAD_S)
+        _hud.radar.set_self_pose(s.pos, s.yaw)
         # Scope overlay readings
         if _in_scope and _scope_cam != null:
             var reticle = _scope_overlay.get_node("Reticle")

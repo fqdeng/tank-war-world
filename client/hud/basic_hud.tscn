@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://client/hud/basic_hud.gd" id="1"]
+[ext_resource type="Script" path="res://client/hud/radar.gd" id="2"]
 
 [node name="BasicHUD" type="CanvasLayer"]
 script = ExtResource("1")
@@ -56,3 +57,11 @@ min_value = 0.0
 max_value = 1.0
 step = 0.01
 show_percentage = false
+
+[node name="Radar" type="Control" parent="Container"]
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_top = -186
+offset_right = 170
+offset_bottom = -16
+script = ExtResource("2")

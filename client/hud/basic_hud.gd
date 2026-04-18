@@ -6,6 +6,7 @@ extends CanvasLayer
 @onready var _id: Label = $Container/IdLabel
 @onready var _ammo: Label = $Container/AmmoLabel
 @onready var _reload: ProgressBar = $Container/ReloadBar
+@onready var radar: Control = $Container/Radar
 
 func set_status(s: String) -> void:
     if _status:
