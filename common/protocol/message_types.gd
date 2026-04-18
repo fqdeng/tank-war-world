@@ -8,7 +8,7 @@ enum {
     INPUT = 2,           # client → server (20 Hz)
     SNAPSHOT = 3,        # server → client (20 Hz)
     FIRE = 4,            # client → server
-    SHELL_FIRED = 5,     # server → all clients
+    SHELL_SPAWNED = 5,   # server → all clients (was SHELL_FIRED in Plan 01)
     HIT = 6,             # server → all clients
     DEATH = 7,           # server → all clients
     RESPAWN = 8,         # server → affected client

@@ -10,6 +10,7 @@ const TankInput = preload("res://client/input/tank_input.gd")
 const BasicHUD = preload("res://client/hud/basic_hud.tscn")
 const Messages = preload("res://common/protocol/messages.gd")
 const MessageType = preload("res://common/protocol/message_types.gd")
+const Ballistics = preload("res://shared/combat/ballistics.gd")
 
 @export var server_url: String = "ws://localhost:8910"
 
@@ -20,6 +21,7 @@ var _camera
 var _input
 var _hud
 var _tanks: Dictionary = {}  # player_id → TankView
+var _shells: Dictionary = {}  # shell_id → Node3D (visual shell)
 var _my_player_id: int = 0
 
 func _ready() -> void:
@@ -76,8 +78,8 @@ func _on_message(msg_type: int, payload: PackedByteArray) -> void:
             _handle_connect_ack(Messages.ConnectAck.decode(payload))
         MessageType.SNAPSHOT:
             _handle_snapshot(Messages.Snapshot.decode(payload))
-        MessageType.SHELL_FIRED:
-            _handle_shell_fired(Messages.ShellFired.decode(payload))
+        MessageType.SHELL_SPAWNED:
+            _handle_shell_spawned(Messages.ShellSpawned.decode(payload))
         MessageType.HIT:
             _handle_hit(Messages.Hit.decode(payload))
         MessageType.DEATH:
@@ -113,12 +115,32 @@ func _handle_snapshot(msg) -> void:
             _tanks[pid].queue_free()
             _tanks.erase(pid)
 
-func _handle_shell_fired(msg) -> void:
-    _spawn_tracer(msg.origin, msg.direction)
+func _handle_shell_spawned(msg) -> void:
+    var mesh := MeshInstance3D.new()
+    var sm := SphereMesh.new()
+    sm.radius = 0.2
+    sm.height = 0.4
+    mesh.mesh = sm
+    var mat := StandardMaterial3D.new()
+    mat.albedo_color = Color(1, 0.6, 0.15)
+    mat.emission_enabled = true
+    mat.emission = Color(1, 0.4, 0.0)
+    mesh.material_override = mat
+    var holder := Node3D.new()
+    holder.add_child(mesh)
+    holder.set_meta("origin", msg.origin)
+    holder.set_meta("velocity", msg.velocity)
+    holder.set_meta("start_ms", Time.get_ticks_msec())
+    add_child(holder)
+    _shells[msg.shell_id] = holder
 
 func _handle_hit(msg) -> void:
-    if _tanks.has(msg.victim_id):
+    if msg.victim_id != 0 and _tanks.has(msg.victim_id):
         _tanks[msg.victim_id].flash_hit()
+    if _shells.has(msg.shell_id):
+        _shells[msg.shell_id].queue_free()
+        _shells.erase(msg.shell_id)
+    _spawn_impact_puff(msg.hit_point)
 
 func _handle_death(msg) -> void:
     if _tanks.has(msg.victim_id):
@@ -145,20 +167,32 @@ func _physics_process(_delta: float) -> void:
         fire.tick = inp.tick
         _ws.send(MessageType.FIRE, fire.encode())
 
-func _spawn_tracer(origin: Vector3, direction: Vector3) -> void:
+func _spawn_impact_puff(pos: Vector3) -> void:
     var mesh := MeshInstance3D.new()
-    var cyl := CylinderMesh.new()
-    cyl.top_radius = 0.08
-    cyl.bottom_radius = 0.08
-    cyl.height = 40.0
-    mesh.mesh = cyl
-    mesh.position = origin + direction * 20.0
-    mesh.look_at(mesh.position + direction, Vector3.UP)
-    mesh.rotate_object_local(Vector3.RIGHT, PI/2)
+    var sm := SphereMesh.new()
+    sm.radius = 1.2
+    sm.height = 2.4
+    mesh.mesh = sm
     var mat := StandardMaterial3D.new()
-    mat.albedo_color = Color(1.0, 0.7, 0.2)
+    mat.albedo_color = Color(1, 0.8, 0.2, 0.8)
+    mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
     mat.emission_enabled = true
-    mat.emission = Color(1.0, 0.5, 0.0)
+    mat.emission = Color(1, 0.5, 0.0)
     mesh.material_override = mat
+    mesh.position = pos
     add_child(mesh)
-    get_tree().create_timer(0.12).timeout.connect(func(): mesh.queue_free())
+    get_tree().create_timer(0.3).timeout.connect(func(): mesh.queue_free())
+
+func _process(_delta: float) -> void:
+    # Advance visual shells along parabolic path
+    for shell_id in _shells.keys():
+        var h: Node3D = _shells[shell_id]
+        var start_ms: int = int(h.get_meta("start_ms"))
+        var elapsed: float = float(Time.get_ticks_msec() - start_ms) / 1000.0
+        if elapsed > Constants.SHELL_MAX_LIFETIME_S:
+            h.queue_free()
+            _shells.erase(shell_id)
+            continue
+        var origin: Vector3 = h.get_meta("origin")
+        var vel: Vector3 = h.get_meta("velocity")
+        h.position = Ballistics.position_at(origin, vel, elapsed)

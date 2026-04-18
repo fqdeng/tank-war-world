@@ -41,8 +41,8 @@ func _process(_delta: float) -> void:
         return
     _peer.poll()
     while _peer.get_available_packet_count() > 0:
-        var packet := _peer.get_packet()
         var peer_id := _peer.get_packet_peer()
+        var packet := _peer.get_packet()
         _handle_packet(peer_id, packet)
 
 func _handle_packet(peer_id: int, packet: PackedByteArray) -> void:

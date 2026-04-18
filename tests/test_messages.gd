@@ -65,15 +65,33 @@ func test_fire_roundtrip() -> void:
 
 func test_hit_roundtrip() -> void:
     var msg := Messages.Hit.new()
+    msg.shell_id = 99
     msg.shooter_id = 3
     msg.victim_id = 5
     msg.damage = 260
+    msg.part_id = 2
     msg.hit_point = Vector3(1, 2, 3)
     var bytes := msg.encode()
     var decoded := Messages.Hit.decode(bytes)
+    assert_eq(decoded.shell_id, 99)
     assert_eq(decoded.shooter_id, 3)
     assert_eq(decoded.victim_id, 5)
     assert_eq(decoded.damage, 260)
+    assert_eq(decoded.part_id, 2)
+
+func test_shell_spawned_roundtrip() -> void:
+    var msg := Messages.ShellSpawned.new()
+    msg.shell_id = 42
+    msg.shooter_id = 3
+    msg.origin = Vector3(10, 20, 30)
+    msg.velocity = Vector3(100, 50, -200)
+    msg.fire_time_ms = 123456789
+    var bytes := msg.encode()
+    var decoded := Messages.ShellSpawned.decode(bytes)
+    assert_eq(decoded.shell_id, 42)
+    assert_eq(decoded.shooter_id, 3)
+    assert_almost_eq(decoded.velocity.z, -200.0, 0.001)
+    assert_eq(decoded.fire_time_ms, 123456789)
 
 func test_death_roundtrip() -> void:
     var msg := Messages.Death.new()

@@ -148,48 +148,60 @@ class Fire:
         m.tick = Codec.read_u32(buf, c)
         return m
 
-# ---- ShellFired (server → all clients) ----
-class ShellFired:
+# ---- ShellSpawned (server → all clients) ----
+class ShellSpawned:
+    var shell_id: int = 0
     var shooter_id: int = 0
     var origin: Vector3 = Vector3.ZERO
-    var direction: Vector3 = Vector3.ZERO
+    var velocity: Vector3 = Vector3.ZERO
+    var fire_time_ms: int = 0
 
     func encode() -> PackedByteArray:
         var buf := PackedByteArray()
+        Codec.write_u32(buf, shell_id)
         Codec.write_u16(buf, shooter_id)
         Codec.write_vec3(buf, origin)
-        Codec.write_vec3(buf, direction)
+        Codec.write_vec3(buf, velocity)
+        Codec.write_u32(buf, fire_time_ms)
         return buf
 
-    static func decode(buf: PackedByteArray) -> ShellFired:
-        var m := ShellFired.new()
+    static func decode(buf: PackedByteArray) -> ShellSpawned:
+        var m := ShellSpawned.new()
         var c := [0]
+        m.shell_id = Codec.read_u32(buf, c)
         m.shooter_id = Codec.read_u16(buf, c)
         m.origin = Codec.read_vec3(buf, c)
-        m.direction = Codec.read_vec3(buf, c)
+        m.velocity = Codec.read_vec3(buf, c)
+        m.fire_time_ms = Codec.read_u32(buf, c)
         return m
 
 # ---- Hit (server → all clients) ----
 class Hit:
+    var shell_id: int = 0
     var shooter_id: int = 0
     var victim_id: int = 0
     var damage: int = 0
+    var part_id: int = 0
     var hit_point: Vector3 = Vector3.ZERO
 
     func encode() -> PackedByteArray:
         var buf := PackedByteArray()
+        Codec.write_u32(buf, shell_id)
         Codec.write_u16(buf, shooter_id)
         Codec.write_u16(buf, victim_id)
         Codec.write_u16(buf, damage)
+        Codec.write_u8(buf, part_id)
         Codec.write_vec3(buf, hit_point)
         return buf
 
     static func decode(buf: PackedByteArray) -> Hit:
         var m := Hit.new()
         var c := [0]
+        m.shell_id = Codec.read_u32(buf, c)
         m.shooter_id = Codec.read_u16(buf, c)
         m.victim_id = Codec.read_u16(buf, c)
         m.damage = Codec.read_u16(buf, c)
+        m.part_id = Codec.read_u8(buf, c)
         m.hit_point = Codec.read_vec3(buf, c)
         return m
 

@@ -56,7 +56,7 @@ func spawn_tank(player_id: int, team: int) -> TankState:
     t.team = team
     t.pos = pick_spawn_pos(team)
     t.yaw = PI if team == 1 else 0.0
-    t.hp = Constants.TANK_MAX_HP
+    t.initialize_parts(Constants.TANK_MAX_HP)
     t.ammo = Constants.TANK_AMMO_CAPACITY
     t.alive = true
     tanks[player_id] = t
