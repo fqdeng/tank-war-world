@@ -14,10 +14,19 @@ static func generate_heightmap(world_seed: int, size: int) -> PackedFloat32Array
 
     var result := PackedFloat32Array()
     result.resize(size * size)
+    var band: float = Constants.BORDER_MOUNTAIN_BAND_M
+    var border_max: float = Constants.BORDER_MOUNTAIN_MAX_H
     for z in size:
         for x in size:
             var n := noise.get_noise_2d(float(x), float(z))  # -1..1
-            var h := (n + 1.0) * 0.5 * Constants.HEIGHT_MAX_M  # 0..HEIGHT_MAX_M
+            var h: float = (n + 1.0) * 0.5 * Constants.HEIGHT_MAX_M
+            # Boundary mountain ring: raise h near the edges on a smooth curve.
+            var d_edge: float = min(min(float(x), float(size - 1 - x)), min(float(z), float(size - 1 - z)))
+            if d_edge < band:
+                var f: float = 1.0 - d_edge / band  # 0 interior → 1 at edge
+                var border_h: float = border_max * f * f
+                if border_h > h:
+                    h = border_h
             result[z * size + x] = h
     return result
 

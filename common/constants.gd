@@ -9,9 +9,14 @@ const TICK_INTERVAL: float = 1.0 / TICK_RATE_HZ  # 0.05s
 # World
 const WORLD_SIZE_M: int = 1024
 const TERRAIN_VERTS_PER_M: int = 1  # 1024x1024 verts
-const HEIGHT_MAX_M: float = 12.0         # was 50 — much flatter world
-const NOISE_OCTAVES: int = 3             # fewer octaves = smoother
-const NOISE_FREQUENCY: float = 1.0 / 384.0  # wider features = gentler slopes
+const HEIGHT_MAX_M: float = 12.0         # natural terrain height cap
+const NOISE_OCTAVES: int = 3
+const NOISE_FREQUENCY: float = 1.0 / 384.0
+
+# Map boundary mountain ring — prevents players from leaving the playable area
+const BORDER_MOUNTAIN_BAND_M: float = 80.0   # ramp zone near the edge
+const BORDER_MOUNTAIN_MAX_H: float = 35.0    # peak height at the edge
+const PLAYABLE_MARGIN_M: float = 55.0        # tank pos is clamped inside [margin, size-margin]
 
 # Obstacles (counts in Plan 01 are reduced for performance headroom)
 const SMALL_ROCK_COUNT: int = 400
@@ -20,9 +25,9 @@ const TREE_COUNT: int = 600
 
 # Tank (single type for Plan 01)
 const TANK_MAX_HP: int = 900
-const TANK_MAX_SPEED_MS: float = 10.0       # 36 km/h
-const TANK_ACCEL_MS2: float = 1.8            # ~5.5s to reach max — more gradual ramp
-const TANK_BRAKE_DECEL_MS2: float = 7.0      # applied when input direction opposes current speed (S while moving fwd = brake)
+const TANK_MAX_SPEED_MS: float = 15.0        # 54 km/h
+const TANK_ACCEL_MS2: float = 2.4            # ~6.3s to reach new max — still gradual
+const TANK_BRAKE_DECEL_MS2: float = 9.0      # applied when input direction opposes current speed (S while moving fwd = brake)
 const TANK_TURRET_ROT_DPS: float = 36.0
 const TANK_TURN_RATE_DPS: float = 45.0
 const TANK_FIRE_DAMAGE: int = 260

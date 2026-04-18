@@ -23,7 +23,7 @@ func test_different_seed_produces_different_heightmap() -> void:
 func test_height_within_range() -> void:
     var hm := TerrainGenerator.generate_heightmap(7, 64)
     for h in hm:
-        assert_true(h >= 0.0 and h <= 50.0, "Height %f out of [0,50]" % h)
+        assert_true(h >= 0.0 and h <= 50.0  # HEIGHT_MAX_M (12) + BORDER_MOUNTAIN_MAX_H (35) = 47 < 50, "Height %f out of [0,50]" % h)
 
 func test_sample_height_bilinear() -> void:
     var hm := TerrainGenerator.generate_heightmap(1, 64)

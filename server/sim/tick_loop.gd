@@ -54,6 +54,15 @@ func _step_tick(dt: float) -> void:
         var inp = _latest_input.get(pid, {"move_forward": 0.0, "move_turn": 0.0, "turret_yaw": 0.0, "gun_pitch": 0.0, "fire_pressed": false, "tick": 0})
         TankMovement.step(state, inp, dt)
         state.last_acked_input_tick = int(inp.get("tick", 0))
+        # Clamp to playable area so players can't leave the map.
+        var margin: float = Constants.PLAYABLE_MARGIN_M
+        var size: float = float(_world.terrain_size)
+        var clamped_x: float = clamp(state.pos.x, margin, size - margin)
+        var clamped_z: float = clamp(state.pos.z, margin, size - margin)
+        if clamped_x != state.pos.x or clamped_z != state.pos.z:
+            state.pos.x = clamped_x
+            state.pos.z = clamped_z
+            state.speed = 0.0
         # Push tank out of overlapping obstacles (xz only).
         var push: Vector3 = _resolve_obstacle_collision(state.pos)
         state.pos.x += push.x
