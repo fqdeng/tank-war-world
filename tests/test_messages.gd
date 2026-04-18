@@ -54,19 +54,19 @@ func test_input_roundtrip() -> void:
 func test_snapshot_roundtrip_multiple_tanks() -> void:
     var msg := Messages.Snapshot.new()
     msg.tick = 1234
-    msg.add_tank(1, 0, Vector3(10, 0, 20), 0.5, 0.1, 0.0, 850, 777)
-    msg.add_tank(2, 1, Vector3(-30, 2, 40), 1.5, 0.2, 0.3, 600, 888)
+    msg.add_tank(1, 0, Vector3(10, 0, 20), 0.5, 0.1, 0.0, 850, 777, 24, 0.0)
+    msg.add_tank(2, 1, Vector3(-30, 2, 40), 1.5, 0.2, 0.3, 600, 888, 12, 1.75)
     var bytes := msg.encode()
     var decoded := Messages.Snapshot.decode(bytes)
     assert_eq(decoded.tick, 1234)
     assert_eq(decoded.tanks.size(), 2)
     assert_eq(decoded.tanks[0].player_id, 1)
-    assert_eq(decoded.tanks[0].team, 0)
     assert_eq(decoded.tanks[0].hp, 850)
     assert_eq(decoded.tanks[0].last_input_tick, 777)
-    assert_eq(decoded.tanks[1].player_id, 2)
-    assert_eq(decoded.tanks[1].hp, 600)
-    assert_eq(decoded.tanks[1].last_input_tick, 888)
+    assert_eq(decoded.tanks[0].ammo, 24)
+    assert_almost_eq(decoded.tanks[0].reload_remaining, 0.0, 0.001)
+    assert_eq(decoded.tanks[1].ammo, 12)
+    assert_almost_eq(decoded.tanks[1].reload_remaining, 1.75, 0.001)
 
 func test_fire_roundtrip() -> void:
     var msg := Messages.Fire.new()

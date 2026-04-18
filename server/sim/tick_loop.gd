@@ -84,7 +84,7 @@ func _step_tick(dt: float) -> void:
     for pid in _world.tanks:
         var s = _world.tanks[pid]
         if s.alive:
-            snap.add_tank(s.player_id, s.team, s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp, s.last_acked_input_tick)
+            snap.add_tank(s.player_id, s.team, s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp, s.last_acked_input_tick, s.ammo, s.reload_remaining)
     _ws_server.broadcast(MessageType.SNAPSHOT, snap.encode())
 
 func _on_client_connected(peer_id: int, connect_msg) -> void:

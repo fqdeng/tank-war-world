@@ -25,7 +25,7 @@ const TANK_ACCEL_MS2: float = 3.0
 const TANK_TURRET_ROT_DPS: float = 36.0
 const TANK_TURN_RATE_DPS: float = 45.0
 const TANK_FIRE_DAMAGE: int = 260
-const TANK_RELOAD_S: float = 4.5
+const TANK_RELOAD_S: float = 2.5
 const TANK_AMMO_CAPACITY: int = 24
 
 # Hitscan (Plan 01 placeholder for parabolic ballistics)
@@ -35,7 +35,7 @@ const HITSCAN_MAX_RANGE_M: float = 1500.0
 const RESPAWN_COOLDOWN_S: float = 10.0
 
 # --- Ballistics (Plan 02) ---
-const SHELL_INITIAL_SPEED: float = 450.0  # m/s
+const SHELL_INITIAL_SPEED: float = 280.0  # m/s — low enough for pronounced ballistic drop
 const GRAVITY: float = 9.8
 const SHELL_MAX_LIFETIME_S: float = 8.0
 const SHELL_STEP_SUBDIVISIONS: int = 4  # per-tick sub-steps for swept collision

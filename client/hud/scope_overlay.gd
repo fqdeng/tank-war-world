@@ -5,6 +5,7 @@ extends Control
 @onready var _dist_label: Label = $DistLabel
 @onready var _ammo_label: Label = $AmmoLabel
 @onready var _pitch_label: Label = $PitchLabel
+@onready var _reload: ProgressBar = $ReloadBar
 
 func set_zoom(z: int) -> void:
     if _zoom_label:
@@ -24,6 +25,12 @@ func set_ammo(n: int) -> void:
 func set_pitch(deg: float) -> void:
     if _pitch_label:
         _pitch_label.text = "GUN %+.1f°" % deg
+
+func set_reload(remaining_s: float, total_s: float) -> void:
+    if _reload == null or total_s <= 0.0:
+        return
+    var frac: float = 1.0 - clamp(remaining_s / total_s, 0.0, 1.0)
+    _reload.value = frac
 
 func _draw() -> void:
     var w: float = size.x

@@ -27,21 +27,33 @@ text = "DIST --- m"
 [node name="AmmoLabel" type="Label" parent="Reticle"]
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -200
+offset_left = -220
 offset_top = 18
-offset_right = -18
+offset_right = -20
 offset_bottom = 50
 horizontal_alignment = 2
 text = "AP x --"
+
+[node name="ReloadBar" type="ProgressBar" parent="Reticle"]
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -220
+offset_top = 48
+offset_right = -20
+offset_bottom = 68
+min_value = 0.0
+max_value = 1.0
+step = 0.01
+show_percentage = false
 
 [node name="PitchLabel" type="Label" parent="Reticle"]
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -200
-offset_top = -60
-offset_right = -18
+offset_left = -220
+offset_top = -40
+offset_right = -20
 offset_bottom = -18
 horizontal_alignment = 2
 text = "GUN +0.0°"

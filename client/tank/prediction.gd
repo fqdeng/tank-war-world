@@ -34,7 +34,8 @@ func apply_local(input: Dictionary, tick: int, dt: float) -> void:
 
 # On snapshot: discard acked inputs, reconcile if diverged.
 func reconcile(server_pos: Vector3, server_yaw: float, server_turret_yaw: float,
-        server_gun_pitch: float, server_hp: int, acked_tick: int) -> void:
+        server_gun_pitch: float, server_hp: int, acked_tick: int,
+        server_ammo: int = -1, server_reload: float = -1.0) -> void:
     if _state == null:
         return
     while _input_history.size() > 0 and int(_input_history[0]["tick"]) <= acked_tick:
@@ -52,3 +53,7 @@ func reconcile(server_pos: Vector3, server_yaw: float, server_turret_yaw: float,
     _state.turret_yaw = server_turret_yaw
     _state.gun_pitch = server_gun_pitch
     _state.hp = server_hp
+    if server_ammo >= 0:
+        _state.ammo = server_ammo
+    if server_reload >= 0.0:
+        _state.reload_remaining = server_reload

@@ -30,3 +30,29 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 offset_top = -20
 text = "Player: --"
+
+[node name="AmmoLabel" type="Label" parent="Container"]
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -220
+offset_top = -56
+offset_right = -20
+offset_bottom = -36
+horizontal_alignment = 2
+text = "AP x --"
+
+[node name="ReloadBar" type="ProgressBar" parent="Container"]
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -220
+offset_top = -30
+offset_right = -20
+offset_bottom = -10
+min_value = 0.0
+max_value = 1.0
+step = 0.01
+show_percentage = false

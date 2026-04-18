@@ -118,6 +118,7 @@ func _handle_connect_ack(msg) -> void:
     ls.pos = msg.spawn_pos
     ls.yaw = PI if msg.team == 1 else 0.0
     ls.initialize_parts(Constants.TANK_MAX_HP)
+    ls.ammo = Constants.TANK_AMMO_CAPACITY
     ls.alive = true
     _prediction = Prediction.new()
     add_child(_prediction)
@@ -134,7 +135,7 @@ func _handle_snapshot(msg) -> void:
         if t.player_id == _my_player_id:
             _ensure_view(t.player_id, t.team, true)
             if _prediction:
-                _prediction.reconcile(t.pos, t.yaw, t.turret_yaw, t.gun_pitch, t.hp, t.last_input_tick)
+                _prediction.reconcile(t.pos, t.yaw, t.turret_yaw, t.gun_pitch, t.hp, t.last_input_tick, t.ammo, t.reload_remaining)
             _camera.set_target(_tanks[t.player_id])
             _hud.set_hp(t.hp)
         else:
@@ -287,11 +288,15 @@ func _process(_delta: float) -> void:
     if _prediction != null and _tanks.has(_my_player_id):
         var s = _prediction.state()
         _tanks[_my_player_id].apply_predicted(s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp)
+        # Base HUD always shows ammo + reload
+        _hud.set_ammo(s.ammo)
+        _hud.set_reload(s.reload_remaining, Constants.TANK_RELOAD_S)
         # Scope overlay readings
         if _in_scope and _scope_cam != null:
             var reticle = _scope_overlay.get_node("Reticle")
             reticle.set_ammo(s.ammo)
             reticle.set_pitch(rad_to_deg(s.gun_pitch))
+            reticle.set_reload(s.reload_remaining, Constants.TANK_RELOAD_S)
             var origin: Vector3 = _scope_cam.global_position
             var fwd: Vector3 = -_scope_cam.global_transform.basis.z
             reticle.set_distance(_raycast_terrain_distance(origin, fwd))
