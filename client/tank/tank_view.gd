@@ -15,6 +15,9 @@ var _body_mesh: MeshInstance3D
 var _turret: Node3D
 var _barrel: Node3D
 var _hp: int = 0
+var _dust: CPUParticles3D
+var _prev_pos: Vector3 = Vector3.ZERO
+var _has_prev_pos: bool = false
 
 # Smoothing targets — snapshot updates these; _process lerps visuals toward them.
 # Plan 03 will replace this with proper buffered interpolation.
@@ -74,6 +77,30 @@ func _build_mesh() -> void:
     barrel_mesh.material_override = barrel_mat
     _barrel.add_child(barrel_mesh)
 
+    _dust = CPUParticles3D.new()
+    _dust.position = Vector3(0, 0.15, 2.6)  # behind tank at ground level
+    _dust.emitting = false
+    _dust.amount = 30
+    _dust.lifetime = 0.9
+    _dust.direction = Vector3(0, 0.4, 1)
+    _dust.spread = 30.0
+    _dust.initial_velocity_min = 1.2
+    _dust.initial_velocity_max = 3.0
+    _dust.gravity = Vector3(0, -1.2, 0)
+    _dust.scale_amount_min = 0.35
+    _dust.scale_amount_max = 0.9
+    var gradient := Gradient.new()
+    gradient.add_point(0.0, Color(0.65, 0.56, 0.42, 0.75))
+    gradient.add_point(1.0, Color(0.65, 0.56, 0.42, 0.0))
+    var grad_tex := GradientTexture1D.new()
+    grad_tex.gradient = gradient
+    _dust.color_ramp = grad_tex
+    var dust_mesh := SphereMesh.new()
+    dust_mesh.radius = 0.28
+    dust_mesh.height = 0.56
+    _dust.mesh = dust_mesh
+    add_child(_dust)
+
 func apply_snapshot(pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int) -> void:
     _target_pos = pos
     _target_yaw = yaw
@@ -101,6 +128,7 @@ func _process(delta: float) -> void:
     var lerped: Vector3 = position.lerp(_target_pos, tp)
     if _heightmap.size() > 0:
         lerped.y = TerrainGenerator.sample_height(_heightmap, _terrain_size, lerped.x, lerped.z)
+    _update_dust(lerped)
     position = lerped
     rotation.y = lerp_angle(rotation.y, _target_yaw, tr)
     if _turret:
@@ -113,6 +141,7 @@ func barrel_node() -> Node3D:
 
 func apply_predicted(pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int) -> void:
     # Used for local tank: skip lerp/interp, render prediction result directly.
+    _update_dust(pos)
     position = pos
     rotation.y = yaw
     if _turret:
@@ -121,6 +150,22 @@ func apply_predicted(pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: flo
         _barrel.rotation.x = gun_pitch
     _hp = hp
     _first_snapshot = false
+
+func _update_dust(new_pos: Vector3) -> void:
+    if _dust == null:
+        return
+    if not _has_prev_pos:
+        _has_prev_pos = true
+        _prev_pos = new_pos
+        return
+    var dt: float = get_process_delta_time()
+    if dt <= 0.0:
+        return
+    var dx: float = new_pos.x - _prev_pos.x
+    var dz: float = new_pos.z - _prev_pos.z
+    var horiz_speed: float = sqrt(dx * dx + dz * dz) / dt
+    _prev_pos = new_pos
+    _dust.emitting = horiz_speed > 1.0
 
 func flash_hit() -> void:
     if _body_mesh == null:
