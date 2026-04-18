@@ -155,12 +155,12 @@ func _on_fire_received(peer_id: int, _fire_msg) -> void:
 func _on_shell_hit(shell, victim_id: int, hit_point: Vector3, part_id: int, obstacle_id: int = 0, obstacle_kind: int = 0) -> void:
     # Obstacle hit?
     if obstacle_id != 0:
-        var destroyed: bool = _world.apply_obstacle_damage(obstacle_id, obstacle_kind, Constants.TANK_FIRE_DAMAGE)
+        var destroyed: bool = _world.apply_obstacle_damage(obstacle_id, obstacle_kind, Constants.SHELL_OBSTACLE_DAMAGE)
         var hit_msg_o := Messages.Hit.new()
         hit_msg_o.shell_id = shell.id
         hit_msg_o.shooter_id = shell.shooter_id
         hit_msg_o.victim_id = 0
-        hit_msg_o.damage = Constants.TANK_FIRE_DAMAGE
+        hit_msg_o.damage = Constants.SHELL_OBSTACLE_DAMAGE
         hit_msg_o.part_id = 0
         hit_msg_o.hit_point = hit_point
         _ws_server.broadcast(MessageType.HIT, hit_msg_o.encode())
