@@ -28,7 +28,15 @@ static func step(state: TankState, input: Dictionary, dt: float) -> void:
 
     var target_speed: float = fwd * max_speed
     var speed_diff: float = target_speed - state.speed
-    var accel_step: float = accel * dt
+
+    # If input direction opposes current velocity, apply brake force (faster
+    # deceleration). This makes S feel like a brake while moving forward rather
+    # than a slow reverse-ramp.
+    var accel_used: float = accel
+    if fwd != 0.0 and state.speed != 0.0 and sign(fwd) != sign(state.speed):
+        accel_used = Constants.TANK_BRAKE_DECEL_MS2
+    var accel_step: float = accel_used * dt
+
     if abs(speed_diff) <= accel_step:
         state.speed = target_speed
     else:

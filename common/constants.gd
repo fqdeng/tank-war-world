@@ -22,6 +22,7 @@ const TREE_COUNT: int = 600
 const TANK_MAX_HP: int = 900
 const TANK_MAX_SPEED_MS: float = 10.0       # 36 km/h
 const TANK_ACCEL_MS2: float = 1.8            # ~5.5s to reach max — more gradual ramp
+const TANK_BRAKE_DECEL_MS2: float = 7.0      # applied when input direction opposes current speed (S while moving fwd = brake)
 const TANK_TURRET_ROT_DPS: float = 36.0
 const TANK_TURN_RATE_DPS: float = 45.0
 const TANK_FIRE_DAMAGE: int = 260
