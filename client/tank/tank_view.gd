@@ -91,11 +91,13 @@ func apply_snapshot(pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: floa
             _barrel.rotation.x = gun_pitch
 
 func _process(delta: float) -> void:
+    # Local tank is driven by apply_predicted each frame — skip the remote-smoothing lerp.
+    if is_local:
+        return
     if _first_snapshot:
         return
     var tp: float = clamp(SMOOTH_POS * delta, 0.0, 1.0)
     var tr: float = clamp(SMOOTH_ROT * delta, 0.0, 1.0)
-    # Lerp X/Z toward target; Y is resolved from local heightmap to avoid per-tick jitter.
     var lerped: Vector3 = position.lerp(_target_pos, tp)
     if _heightmap.size() > 0:
         lerped.y = TerrainGenerator.sample_height(_heightmap, _terrain_size, lerped.x, lerped.z)
