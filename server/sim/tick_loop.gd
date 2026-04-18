@@ -50,8 +50,9 @@ func _step_tick(dt: float) -> void:
         var state = _world.tanks[pid]
         if not state.alive:
             continue
-        var inp = _latest_input.get(pid, {"move_forward": 0.0, "move_turn": 0.0, "turret_yaw": 0.0, "gun_pitch": 0.0, "fire_pressed": false})
+        var inp = _latest_input.get(pid, {"move_forward": 0.0, "move_turn": 0.0, "turret_yaw": 0.0, "gun_pitch": 0.0, "fire_pressed": false, "tick": 0})
         TankMovement.step(state, inp, dt)
+        state.last_acked_input_tick = int(inp.get("tick", 0))
         # Push tank out of overlapping obstacles (xz only).
         var push: Vector3 = _resolve_obstacle_collision(state.pos)
         state.pos.x += push.x
@@ -82,7 +83,7 @@ func _step_tick(dt: float) -> void:
     for pid in _world.tanks:
         var s = _world.tanks[pid]
         if s.alive:
-            snap.add_tank(s.player_id, s.team, s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp)
+            snap.add_tank(s.player_id, s.team, s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp, s.last_acked_input_tick)
     _ws_server.broadcast(MessageType.SNAPSHOT, snap.encode())
 
 func _on_client_connected(peer_id: int, connect_msg) -> void:
@@ -120,6 +121,7 @@ func _on_input_received(peer_id: int, input_msg) -> void:
         "turret_yaw": input_msg.turret_yaw,
         "gun_pitch": input_msg.gun_pitch,
         "fire_pressed": input_msg.fire_pressed,
+        "tick": input_msg.tick,
     }
 
 func _on_fire_received(peer_id: int, _fire_msg) -> void:

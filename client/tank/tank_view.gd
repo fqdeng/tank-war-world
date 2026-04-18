@@ -106,6 +106,17 @@ func _process(delta: float) -> void:
     if _barrel:
         _barrel.rotation.x = lerp(_barrel.rotation.x, _target_gun_pitch, tr)
 
+func apply_predicted(pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int) -> void:
+    # Used for local tank: skip lerp/interp, render prediction result directly.
+    position = pos
+    rotation.y = yaw
+    if _turret:
+        _turret.rotation.y = turret_yaw
+    if _barrel:
+        _barrel.rotation.x = gun_pitch
+    _hp = hp
+    _first_snapshot = false
+
 func flash_hit() -> void:
     if _body_mesh == null:
         return

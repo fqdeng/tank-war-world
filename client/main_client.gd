@@ -11,6 +11,9 @@ const BasicHUD = preload("res://client/hud/basic_hud.tscn")
 const Messages = preload("res://common/protocol/messages.gd")
 const MessageType = preload("res://common/protocol/message_types.gd")
 const Ballistics = preload("res://shared/combat/ballistics.gd")
+const Prediction = preload("res://client/tank/prediction.gd")
+const Interpolation = preload("res://client/tank/interpolation.gd")
+const TankState = preload("res://shared/tank/tank_state.gd")
 
 @export var server_url: String = "ws://localhost:8910"
 
@@ -23,6 +26,8 @@ var _hud
 var _tanks: Dictionary = {}  # player_id → TankView
 var _shells: Dictionary = {}  # shell_id → Node3D (visual shell)
 var _my_player_id: int = 0
+var _prediction  # Prediction for local tank
+var _remote_interp: Dictionary = {}  # player_id → Interpolation
 
 func _ready() -> void:
     print("[Client] Connecting to %s" % server_url)
@@ -93,29 +98,51 @@ func _handle_connect_ack(msg) -> void:
     _terrain_builder.build(msg.world_seed)
     _obstacle_builder.build(msg.world_seed, _terrain_builder.heightmap, _terrain_builder.terrain_size)
     _camera.set_heightmap(_terrain_builder.heightmap, _terrain_builder.terrain_size)
+    # Initialize client-side prediction for own tank.
+    var ls := TankState.new()
+    ls.player_id = msg.player_id
+    ls.team = msg.team
+    ls.pos = msg.spawn_pos
+    ls.yaw = PI if msg.team == 1 else 0.0
+    ls.initialize_parts(Constants.TANK_MAX_HP)
+    ls.alive = true
+    _prediction = Prediction.new()
+    add_child(_prediction)
+    _prediction.initialize(ls, _terrain_builder.heightmap, _terrain_builder.terrain_size)
     _input.set_enabled(true)
     _hud.set_status("CONNECTED")
     _hud.set_player_id(msg.player_id)
 
 func _handle_snapshot(msg) -> void:
+    var now_ms: int = Time.get_ticks_msec()
     var seen: Dictionary = {}
     for t in msg.tanks:
         seen[t.player_id] = true
-        var view = _tanks.get(t.player_id)
-        if view == null:
-            view = TankView.new()
-            add_child(view)
-            _tanks[t.player_id] = view
-            view.setup(t.player_id, t.team, t.player_id == _my_player_id)
-            view.set_terrain(_terrain_builder.heightmap, _terrain_builder.terrain_size)
-        view.apply_snapshot(t.pos, t.yaw, t.turret_yaw, t.gun_pitch, t.hp)
         if t.player_id == _my_player_id:
-            _camera.set_target(view)
+            _ensure_view(t.player_id, t.team, true)
+            if _prediction:
+                _prediction.reconcile(t.pos, t.yaw, t.turret_yaw, t.gun_pitch, t.hp, t.last_input_tick)
+            _camera.set_target(_tanks[t.player_id])
             _hud.set_hp(t.hp)
+        else:
+            _ensure_view(t.player_id, t.team, false)
+            if not _remote_interp.has(t.player_id):
+                _remote_interp[t.player_id] = Interpolation.new()
+            _remote_interp[t.player_id].push_snapshot(now_ms, t.pos, t.yaw, t.turret_yaw, t.gun_pitch, t.hp)
     for pid in _tanks.keys():
         if not seen.has(pid):
             _tanks[pid].queue_free()
             _tanks.erase(pid)
+            _remote_interp.erase(pid)
+
+func _ensure_view(pid: int, team: int, is_local: bool) -> void:
+    if _tanks.has(pid):
+        return
+    var v = TankView.new()
+    add_child(v)
+    v.setup(pid, team, is_local)
+    v.set_terrain(_terrain_builder.heightmap, _terrain_builder.terrain_size)
+    _tanks[pid] = v
 
 func _handle_shell_spawned(msg) -> void:
     var mesh := MeshInstance3D.new()
@@ -156,18 +183,26 @@ func _handle_respawn(msg) -> void:
     if _tanks.has(msg.player_id):
         _tanks[msg.player_id].set_dead(false)
 
-func _physics_process(_delta: float) -> void:
-    if _my_player_id == 0:
-        return
-    if _ws == null or not _ws.is_open():
+func _physics_process(delta: float) -> void:
+    if _my_player_id == 0 or _ws == null or not _ws.is_open():
         return
     var inp = _input.build_input_message()
-    inp.tick = Engine.get_physics_frames()
+    var tick: int = Engine.get_physics_frames()
+    inp.tick = tick
     _ws.send(MessageType.INPUT, inp.encode())
     if _input.consume_fire():
         var fire := Messages.Fire.new()
-        fire.tick = inp.tick
+        fire.tick = tick
         _ws.send(MessageType.FIRE, fire.encode())
+    if _prediction != null:
+        var d := {
+            "move_forward": inp.move_forward,
+            "move_turn": inp.move_turn,
+            "turret_yaw": inp.turret_yaw,
+            "gun_pitch": inp.gun_pitch,
+            "fire_pressed": inp.fire_pressed,
+        }
+        _prediction.apply_local(d, tick, delta)
 
 func _spawn_impact_puff(pos: Vector3) -> void:
     var mesh := MeshInstance3D.new()
@@ -186,6 +221,20 @@ func _spawn_impact_puff(pos: Vector3) -> void:
     get_tree().create_timer(0.3).timeout.connect(func(): mesh.queue_free())
 
 func _process(_delta: float) -> void:
+    # Local tank: apply predicted state directly (no smoothing — user feels instant input)
+    if _prediction != null and _tanks.has(_my_player_id):
+        var s = _prediction.state()
+        _tanks[_my_player_id].apply_predicted(s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp)
+    # Remote tanks: sample interp buffer at now - 100ms and update view
+    var now_ms: int = Time.get_ticks_msec()
+    for pid in _remote_interp:
+        var r = _remote_interp[pid].sample(now_ms)
+        if r == null:
+            continue
+        var view = _tanks.get(pid)
+        if view == null:
+            continue
+        view.apply_snapshot(r["pos"], r["yaw"], r["turret_yaw"], r["gun_pitch"], int(r["hp"]))
     # Advance visual shells along parabolic path
     for shell_id in _shells.keys():
         var h: Node3D = _shells[shell_id]

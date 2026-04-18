@@ -86,12 +86,13 @@ class TankSnapshot:
     var turret_yaw: float = 0.0
     var gun_pitch: float = 0.0
     var hp: int = 0
+    var last_input_tick: int = 0
 
 class Snapshot:
     var tick: int = 0
     var tanks: Array = []  # Array[TankSnapshot]
 
-    func add_tank(pid: int, team: int, pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int) -> void:
+    func add_tank(pid: int, team: int, pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int, last_input_tick: int = 0) -> void:
         var t := TankSnapshot.new()
         t.player_id = pid
         t.team = team
@@ -100,6 +101,7 @@ class Snapshot:
         t.turret_yaw = turret_yaw
         t.gun_pitch = gun_pitch
         t.hp = hp
+        t.last_input_tick = last_input_tick
         tanks.append(t)
 
     func encode() -> PackedByteArray:
@@ -114,6 +116,7 @@ class Snapshot:
             Codec.write_f32(buf, t.turret_yaw)
             Codec.write_f32(buf, t.gun_pitch)
             Codec.write_u16(buf, t.hp)
+            Codec.write_u32(buf, t.last_input_tick)
         return buf
 
     static func decode(buf: PackedByteArray) -> Snapshot:
@@ -130,6 +133,7 @@ class Snapshot:
             t.turret_yaw = Codec.read_f32(buf, c)
             t.gun_pitch = Codec.read_f32(buf, c)
             t.hp = Codec.read_u16(buf, c)
+            t.last_input_tick = Codec.read_u32(buf, c)
             m.tanks.append(t)
         return m
 
