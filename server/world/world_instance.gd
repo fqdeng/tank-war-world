@@ -47,7 +47,7 @@ func pick_spawn_pos(team: int) -> Vector3:
     else:
         x = float(terrain_size) - margin - randf() * 40.0
         z = float(terrain_size) - margin - randf() * 40.0
-    var y := TerrainGenerator.sample_height(heightmap, terrain_size, x, z) + 1.0
+    var y := TerrainGenerator.sample_height(heightmap, terrain_size, x, z)
     return Vector3(x, y, z)
 
 func spawn_tank(player_id: int, team: int) -> TankState:

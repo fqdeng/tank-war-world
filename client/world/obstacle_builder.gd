@@ -19,49 +19,49 @@ func build(world_seed: int, heightmap: PackedFloat32Array, terrain_size: int) ->
 func _make_node(o) -> Node3D:
     var n := Node3D.new()
     match o.kind:
-        0:  # SMALL_ROCK
+        0:  # SMALL_ROCK (~2x Plan 01 size)
             var mi := MeshInstance3D.new()
             var m := BoxMesh.new()
-            m.size = Vector3(1.6, 1.2, 1.6)
+            m.size = Vector3(3.2, 2.4, 3.2)
             mi.mesh = m
             var mat := StandardMaterial3D.new()
             mat.albedo_color = Color(0.55, 0.52, 0.5)
             mat.roughness = 1.0
             mi.material_override = mat
-            mi.position.y = 0.6
+            mi.position.y = 1.2
             n.add_child(mi)
-        1:  # LARGE_ROCK
+        1:  # LARGE_ROCK (~2x)
             var mi := MeshInstance3D.new()
             var m := BoxMesh.new()
-            m.size = Vector3(3.5, 2.6, 3.5)
+            m.size = Vector3(7.0, 5.0, 7.0)
             mi.mesh = m
             var mat := StandardMaterial3D.new()
             mat.albedo_color = Color(0.45, 0.42, 0.4)
             mat.roughness = 1.0
             mi.material_override = mat
-            mi.position.y = 1.3
+            mi.position.y = 2.5
             n.add_child(mi)
-        2:  # TREE
+        2:  # TREE (taller trunk, bigger crown)
             var trunk := MeshInstance3D.new()
             var trunk_mesh := CylinderMesh.new()
-            trunk_mesh.top_radius = 0.25
-            trunk_mesh.bottom_radius = 0.35
-            trunk_mesh.height = 3.0
+            trunk_mesh.top_radius = 0.5
+            trunk_mesh.bottom_radius = 0.7
+            trunk_mesh.height = 6.0
             trunk.mesh = trunk_mesh
             var trunk_mat := StandardMaterial3D.new()
             trunk_mat.albedo_color = Color(0.35, 0.22, 0.12)
             trunk_mat.roughness = 1.0
             trunk.material_override = trunk_mat
-            trunk.position.y = 1.5
+            trunk.position.y = 3.0
             n.add_child(trunk)
             var crown := MeshInstance3D.new()
             var crown_mesh := BoxMesh.new()
-            crown_mesh.size = Vector3(2.6, 2.6, 2.6)
+            crown_mesh.size = Vector3(5.0, 5.0, 5.0)
             crown.mesh = crown_mesh
             var crown_mat := StandardMaterial3D.new()
             crown_mat.albedo_color = Color(0.2, 0.45, 0.22)
             crown_mat.roughness = 1.0
             crown.material_override = crown_mat
-            crown.position.y = 4.2
+            crown.position.y = 8.0
             n.add_child(crown)
     return n

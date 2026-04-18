@@ -25,8 +25,9 @@ func test_no_input_decelerates() -> void:
 func test_turn_input_rotates() -> void:
     var s := TankState.new()
     s.yaw = 0.0
+    # Positive move_turn means turn left (Godot CCW from above); yaw increases.
     TankMovement.step(s, _make_input(0.0, 1.0), 0.1)
-    assert_gt(s.yaw, 0.0, "Yaw should increase with right turn input")
+    assert_gt(s.yaw, 0.0, "Positive turn (left) should increase yaw")
 
 func test_speed_capped_at_max() -> void:
     var s := TankState.new()

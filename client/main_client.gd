@@ -92,6 +92,7 @@ func _handle_connect_ack(msg) -> void:
     print("[Client] CONNECT_ACK: player_id=%d team=%d seed=%d spawn=%s" % [msg.player_id, msg.team, msg.world_seed, msg.spawn_pos])
     _terrain_builder.build(msg.world_seed)
     _obstacle_builder.build(msg.world_seed, _terrain_builder.heightmap, _terrain_builder.terrain_size)
+    _camera.set_heightmap(_terrain_builder.heightmap, _terrain_builder.terrain_size)
     _input.set_enabled(true)
     _hud.set_status("CONNECTED")
     _hud.set_player_id(msg.player_id)
@@ -106,6 +107,7 @@ func _handle_snapshot(msg) -> void:
             add_child(view)
             _tanks[t.player_id] = view
             view.setup(t.player_id, t.team, t.player_id == _my_player_id)
+            view.set_terrain(_terrain_builder.heightmap, _terrain_builder.terrain_size)
         view.apply_snapshot(t.pos, t.yaw, t.turret_yaw, t.gun_pitch, t.hp)
         if t.player_id == _my_player_id:
             _camera.set_target(view)

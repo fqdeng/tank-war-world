@@ -36,5 +36,8 @@ func build(world_seed: int) -> void:
     var mat := StandardMaterial3D.new()
     mat.albedo_color = Color(0.35, 0.5, 0.28)
     mat.roughness = 1.0
+    # Render both sides so the ground doesn't look "see-through" when the
+    # camera dips below terrain height (inside hills, behind slopes).
+    mat.cull_mode = BaseMaterial3D.CULL_DISABLED
     mi.material_override = mat
     add_child(mi)

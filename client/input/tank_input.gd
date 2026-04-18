@@ -36,8 +36,10 @@ func build_input_message():
     if _enabled:
         if Input.is_key_pressed(KEY_W): m.move_forward += 1.0
         if Input.is_key_pressed(KEY_S): m.move_forward -= 1.0
-        if Input.is_key_pressed(KEY_A): m.move_turn -= 1.0
-        if Input.is_key_pressed(KEY_D): m.move_turn += 1.0
+        # A (left) → positive yaw delta (CCW from above in Godot) → tank turns left
+        # D (right) → negative yaw delta → tank turns right
+        if Input.is_key_pressed(KEY_A): m.move_turn += 1.0
+        if Input.is_key_pressed(KEY_D): m.move_turn -= 1.0
     m.turret_yaw = _turret_yaw
     m.gun_pitch = _gun_pitch
     m.fire_pressed = _fire_latched

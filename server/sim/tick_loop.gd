@@ -52,8 +52,15 @@ func _step_tick(dt: float) -> void:
             continue
         var inp = _latest_input.get(pid, {"move_forward": 0.0, "move_turn": 0.0, "turret_yaw": 0.0, "gun_pitch": 0.0, "fire_pressed": false})
         TankMovement.step(state, inp, dt)
+        # Push tank out of overlapping obstacles (xz only).
+        var push: Vector3 = _resolve_obstacle_collision(state.pos)
+        state.pos.x += push.x
+        state.pos.z += push.z
+        # If still moving into the obstacle, kill forward velocity so the tank stops pressing.
+        if push.length_squared() > 0.0001:
+            state.speed = 0.0
         var terrain_h: float = TerrainGenerator.sample_height(_world.heightmap, _world.terrain_size, state.pos.x, state.pos.z)
-        state.pos.y = terrain_h + 1.0
+        state.pos.y = terrain_h
         state.turret_yaw = float(inp.get("turret_yaw", state.turret_yaw))
         state.gun_pitch = float(inp.get("gun_pitch", state.gun_pitch))
         if state.reload_remaining > 0.0:
@@ -167,6 +174,37 @@ func _on_shell_hit(shell, victim_id: int, hit_point: Vector3, part_id: int) -> v
         death_msg.victim_id = victim_id
         death_msg.killer_id = shell.shooter_id
         _ws_server.broadcast(MessageType.DEATH, death_msg.encode())
+
+# Returns cumulative push vector (xz only) to resolve overlap with obstacles.
+# Simple O(N) scan — fine for the ~1080 obstacles we have in Plan 02.
+func _resolve_obstacle_collision(pos: Vector3) -> Vector3:
+    var push_x: float = 0.0
+    var push_z: float = 0.0
+    var tank_r: float = Constants.TANK_COLLISION_RADIUS
+    for o in _world.obstacles:
+        var o_r: float = _obstacle_collision_radius(o.kind)
+        var min_d: float = tank_r + o_r
+        var dx: float = pos.x - o.pos.x
+        var dz: float = pos.z - o.pos.z
+        var d_sq: float = dx * dx + dz * dz
+        if d_sq >= min_d * min_d:
+            continue
+        var d: float = sqrt(d_sq)
+        if d < 0.001:
+            # Exactly overlapping center — push in arbitrary direction.
+            push_x += min_d
+            continue
+        var overlap: float = min_d - d
+        push_x += dx / d * overlap
+        push_z += dz / d * overlap
+    return Vector3(push_x, 0.0, push_z)
+
+func _obstacle_collision_radius(kind: int) -> float:
+    match kind:
+        0: return Constants.OBSTACLE_RADIUS_SMALL_ROCK
+        1: return Constants.OBSTACLE_RADIUS_LARGE_ROCK
+        2: return Constants.OBSTACLE_RADIUS_TREE
+    return 1.0
 
 func _respawn_player(player_id: int) -> void:
     if not _world.tanks.has(player_id):

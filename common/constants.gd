@@ -9,9 +9,9 @@ const TICK_INTERVAL: float = 1.0 / TICK_RATE_HZ  # 0.05s
 # World
 const WORLD_SIZE_M: int = 1024
 const TERRAIN_VERTS_PER_M: int = 1  # 1024x1024 verts
-const HEIGHT_MAX_M: float = 50.0
-const NOISE_OCTAVES: int = 4
-const NOISE_FREQUENCY: float = 1.0 / 256.0
+const HEIGHT_MAX_M: float = 12.0         # was 50 — much flatter world
+const NOISE_OCTAVES: int = 3             # fewer octaves = smoother
+const NOISE_FREQUENCY: float = 1.0 / 384.0  # wider features = gentler slopes
 
 # Obstacles (counts in Plan 01 are reduced for performance headroom)
 const SMALL_ROCK_COUNT: int = 400
@@ -59,3 +59,11 @@ const MULT_TOP: float = 2.5
 # --- Functional damage ---
 const ENGINE_SPEED_FACTOR_WHEN_DEAD: float = 0.25
 const ENGINE_ACCEL_FACTOR_WHEN_DEAD: float = 0.5
+
+# --- Obstacle collision (server authoritative) ---
+# Radii use roughly the inscribed circle (half-width) of the visible mesh so
+# the tank stops visually flush with the obstacle instead of with a gap.
+const TANK_COLLISION_RADIUS: float = 1.7      # tank body is 3x5m, half-width 1.5 + small buffer
+const OBSTACLE_RADIUS_SMALL_ROCK: float = 1.6  # box 3.2 → half-width 1.6
+const OBSTACLE_RADIUS_LARGE_ROCK: float = 3.5  # box 7.0 → half-width 3.5
+const OBSTACLE_RADIUS_TREE: float = 0.7        # trunk base 0.7
