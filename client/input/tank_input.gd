@@ -3,7 +3,7 @@ extends Node
 
 const Messages = preload("res://common/protocol/messages.gd")
 
-signal scope_toggled
+signal scope_changed(active: bool)
 signal zoom_cycled(direction: int)
 
 var _enabled: bool = false
@@ -32,8 +32,8 @@ func _input(ev: InputEvent) -> void:
     elif ev is InputEventMouseButton:
         if ev.button_index == MOUSE_BUTTON_LEFT and ev.pressed:
             _fire_latched = true
-        elif ev.button_index == MOUSE_BUTTON_RIGHT and ev.pressed:
-            scope_toggled.emit()
+        elif ev.button_index == MOUSE_BUTTON_RIGHT:
+            scope_changed.emit(ev.pressed)  # hold-to-scope
         elif ev.button_index == MOUSE_BUTTON_WHEEL_UP and ev.pressed:
             zoom_cycled.emit(1)
         elif ev.button_index == MOUSE_BUTTON_WHEEL_DOWN and ev.pressed:

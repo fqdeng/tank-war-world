@@ -68,7 +68,7 @@ func _ready() -> void:
 
     _input = TankInput.new()
     add_child(_input)
-    _input.scope_toggled.connect(_toggle_scope)
+    _input.scope_changed.connect(_on_scope_changed)
     _input.zoom_cycled.connect(_on_zoom_cycled)
 
     _hud = BasicHUD.instantiate()
@@ -149,27 +149,37 @@ func _handle_snapshot(msg) -> void:
             _tanks.erase(pid)
             _remote_interp.erase(pid)
 
-func _toggle_scope() -> void:
+func _on_scope_changed(active: bool) -> void:
+    if active:
+        _enter_scope()
+    else:
+        _exit_scope()
+
+func _enter_scope() -> void:
+    if _in_scope:
+        return
     if _scope_cam == null:
         _ensure_scope_cam()
     if _scope_cam == null:
         return
-    _in_scope = not _in_scope
-    if _in_scope:
-        _scope_cam.current = true
-        _scope_overlay.visible = true
-        _hud.visible = false
-        # Hide own tank meshes so the barrel doesn't occlude the scope view.
-        if _tanks.has(_my_player_id):
-            _tanks[_my_player_id].visible = false
-        _input.set_scope_zoom(float(_scope_cam.current_zoom()))
-    else:
-        _camera.current = true
-        _scope_overlay.visible = false
-        _hud.visible = true
-        if _tanks.has(_my_player_id):
-            _tanks[_my_player_id].visible = true
-        _input.set_scope_zoom(1.0)
+    _in_scope = true
+    _scope_cam.current = true
+    _scope_overlay.visible = true
+    _hud.visible = false
+    if _tanks.has(_my_player_id):
+        _tanks[_my_player_id].visible = false
+    _input.set_scope_zoom(float(_scope_cam.current_zoom()))
+
+func _exit_scope() -> void:
+    if not _in_scope:
+        return
+    _in_scope = false
+    _camera.current = true
+    _scope_overlay.visible = false
+    _hud.visible = true
+    if _tanks.has(_my_player_id):
+        _tanks[_my_player_id].visible = true
+    _input.set_scope_zoom(1.0)
 
 func _on_zoom_cycled(dir: int) -> void:
     if _scope_cam == null or not _in_scope:
