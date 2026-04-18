@@ -14,6 +14,10 @@ config/name="TankWarWorld"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 
+[autoload]
+
+Constants="*res://common/constants.gd"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"
