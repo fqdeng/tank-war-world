@@ -33,3 +33,29 @@ const HITSCAN_MAX_RANGE_M: float = 1500.0
 
 # Respawn
 const RESPAWN_COOLDOWN_S: float = 10.0
+
+# --- Ballistics (Plan 02) ---
+const SHELL_INITIAL_SPEED: float = 450.0  # m/s
+const GRAVITY: float = 9.8
+const SHELL_MAX_LIFETIME_S: float = 8.0
+const SHELL_STEP_SUBDIVISIONS: int = 4  # per-tick sub-steps for swept collision
+
+# --- Part HP proportions (sum to 1.0) ---
+const PART_HP_HULL: float = 0.40
+const PART_HP_TURRET: float = 0.15
+const PART_HP_ENGINE: float = 0.15
+const PART_HP_LEFT_TRACK: float = 0.10
+const PART_HP_RIGHT_TRACK: float = 0.10
+const PART_HP_TOP: float = 0.10
+
+# --- Damage multipliers ---
+const MULT_HULL: float = 1.0
+const MULT_TURRET: float = 1.3
+const MULT_ENGINE: float = 1.5
+const MULT_LEFT_TRACK: float = 0.8
+const MULT_RIGHT_TRACK: float = 0.8
+const MULT_TOP: float = 2.5
+
+# --- Functional damage ---
+const ENGINE_SPEED_FACTOR_WHEN_DEAD: float = 0.25
+const ENGINE_ACCEL_FACTOR_WHEN_DEAD: float = 0.5

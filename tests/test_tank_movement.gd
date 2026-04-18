@@ -42,3 +42,30 @@ func test_reverse_input_moves_backwards() -> void:
     assert_lt(s.speed, 0.0)
     # With -Z = forward convention, reverse moves to +Z
     assert_gt(s.pos.z, 0.0, "Reversing while facing -Z should move to +Z")
+
+func test_both_tracks_destroyed_stops_movement() -> void:
+    var s := TankState.new()
+    s.initialize_parts(Constants.TANK_MAX_HP)
+    s.parts[TankState.Part.LEFT_TRACK] = 0.0
+    s.parts[TankState.Part.RIGHT_TRACK] = 0.0
+    s.pos = Vector3.ZERO
+    TankMovement.step(s, _make_input(1.0, 0.0), 0.5)
+    assert_almost_eq(s.speed, 0.0, 0.01)
+
+func test_engine_destroyed_reduces_max_speed() -> void:
+    var s := TankState.new()
+    s.initialize_parts(Constants.TANK_MAX_HP)
+    s.parts[TankState.Part.ENGINE] = 0.0
+    s.pos = Vector3.ZERO
+    for i in 200:
+        TankMovement.step(s, _make_input(1.0, 0.0), 0.05)
+    var max_expected: float = Constants.TANK_MAX_SPEED_MS * Constants.ENGINE_SPEED_FACTOR_WHEN_DEAD + 0.5
+    assert_lt(s.speed, max_expected)
+
+func test_healthy_tank_reaches_max_speed() -> void:
+    var s := TankState.new()
+    s.initialize_parts(Constants.TANK_MAX_HP)
+    s.pos = Vector3.ZERO
+    for i in 200:
+        TankMovement.step(s, _make_input(1.0, 0.0), 0.05)
+    assert_gt(s.speed, Constants.TANK_MAX_SPEED_MS - 0.1)
