@@ -14,6 +14,9 @@ const Ballistics = preload("res://shared/combat/ballistics.gd")
 const Prediction = preload("res://client/tank/prediction.gd")
 const Interpolation = preload("res://client/tank/interpolation.gd")
 const TankState = preload("res://shared/tank/tank_state.gd")
+const ScopeCam = preload("res://client/camera/scope_cam.gd")
+const ScopeOverlay = preload("res://client/hud/scope_overlay.tscn")
+const TerrainGenerator = preload("res://shared/world/terrain_generator.gd")
 
 @export var server_url: String = "ws://localhost:8910"
 
@@ -28,6 +31,9 @@ var _shells: Dictionary = {}  # shell_id → Node3D (visual shell)
 var _my_player_id: int = 0
 var _prediction  # Prediction for local tank
 var _remote_interp: Dictionary = {}  # player_id → Interpolation
+var _scope_cam
+var _scope_overlay
+var _in_scope: bool = false
 
 func _ready() -> void:
     print("[Client] Connecting to %s" % server_url)
@@ -62,9 +68,13 @@ func _ready() -> void:
 
     _input = TankInput.new()
     add_child(_input)
+    _input.scope_toggled.connect(_toggle_scope)
+    _input.zoom_cycled.connect(_on_zoom_cycled)
 
     _hud = BasicHUD.instantiate()
     add_child(_hud)
+    _scope_overlay = ScopeOverlay.instantiate()
+    add_child(_scope_overlay)
 
 func _on_connected() -> void:
     print("[Client] WebSocket connected. Sending CONNECT.")
@@ -137,6 +147,55 @@ func _handle_snapshot(msg) -> void:
             _tanks[pid].queue_free()
             _tanks.erase(pid)
             _remote_interp.erase(pid)
+
+func _toggle_scope() -> void:
+    if _scope_cam == null:
+        _ensure_scope_cam()
+    if _scope_cam == null:
+        return
+    _in_scope = not _in_scope
+    if _in_scope:
+        _scope_cam.current = true
+        _scope_overlay.visible = true
+        _hud.visible = false
+    else:
+        _camera.current = true
+        _scope_overlay.visible = false
+        _hud.visible = true
+
+func _on_zoom_cycled(dir: int) -> void:
+    if _scope_cam == null or not _in_scope:
+        return
+    _scope_cam.cycle_zoom(dir)
+    _scope_overlay.get_node("Reticle").set_zoom(_scope_cam.current_zoom())
+
+func _ensure_scope_cam() -> void:
+    if _scope_cam != null:
+        return
+    if not _tanks.has(_my_player_id):
+        return
+    var view = _tanks[_my_player_id]
+    var barrel = view.barrel_node()
+    if barrel == null:
+        return
+    _scope_cam = ScopeCam.new()
+    _scope_cam.position = Vector3(0, 0.5, -0.5)
+    barrel.add_child(_scope_cam)
+    _scope_overlay.get_node("Reticle").set_zoom(_scope_cam.current_zoom())
+
+func _raycast_terrain_distance(origin: Vector3, dir: Vector3) -> float:
+    if _terrain_builder == null or _terrain_builder.heightmap.size() == 0:
+        return -1.0
+    var max_d: float = 1500.0
+    var steps: int = 60
+    var step_len: float = max_d / float(steps)
+    for i in range(1, steps + 1):
+        var t: float = i * step_len
+        var p: Vector3 = origin + dir * t
+        var th: float = TerrainGenerator.sample_height(_terrain_builder.heightmap, _terrain_builder.terrain_size, p.x, p.z)
+        if p.y <= th:
+            return t
+    return -1.0
 
 func _ensure_view(pid: int, team: int, is_local: bool) -> void:
     if _tanks.has(pid):
@@ -228,6 +287,14 @@ func _process(_delta: float) -> void:
     if _prediction != null and _tanks.has(_my_player_id):
         var s = _prediction.state()
         _tanks[_my_player_id].apply_predicted(s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp)
+        # Scope overlay readings
+        if _in_scope and _scope_cam != null:
+            var reticle = _scope_overlay.get_node("Reticle")
+            reticle.set_ammo(s.ammo)
+            reticle.set_pitch(rad_to_deg(s.gun_pitch))
+            var origin: Vector3 = _scope_cam.global_position
+            var fwd: Vector3 = -_scope_cam.global_transform.basis.z
+            reticle.set_distance(_raycast_terrain_distance(origin, fwd))
     # Remote tanks: sample interp buffer at now - 100ms and update view
     var now_ms: int = Time.get_ticks_msec()
     for pid in _remote_interp:

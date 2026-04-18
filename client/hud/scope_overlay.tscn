@@ -1,0 +1,47 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://client/hud/scope_overlay.gd" id="1"]
+
+[node name="ScopeOverlay" type="CanvasLayer"]
+visible = false
+
+[node name="Reticle" type="Control" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1")
+
+[node name="ZoomLabel" type="Label" parent="Reticle"]
+offset_left = 18
+offset_top = 18
+offset_right = 200
+offset_bottom = 50
+text = "ZOOM x4"
+
+[node name="DistLabel" type="Label" parent="Reticle"]
+offset_left = 18
+offset_top = 44
+offset_right = 240
+offset_bottom = 72
+text = "DIST --- m"
+
+[node name="AmmoLabel" type="Label" parent="Reticle"]
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -200
+offset_top = 18
+offset_right = -18
+offset_bottom = 50
+horizontal_alignment = 2
+text = "AP x --"
+
+[node name="PitchLabel" type="Label" parent="Reticle"]
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -200
+offset_top = -60
+offset_right = -18
+offset_bottom = -18
+horizontal_alignment = 2
+text = "GUN +0.0°"

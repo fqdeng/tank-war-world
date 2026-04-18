@@ -108,6 +108,9 @@ func _process(delta: float) -> void:
     if _barrel:
         _barrel.rotation.x = lerp(_barrel.rotation.x, _target_gun_pitch, tr)
 
+func barrel_node() -> Node3D:
+    return _barrel
+
 func apply_predicted(pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int) -> void:
     # Used for local tank: skip lerp/interp, render prediction result directly.
     position = pos

@@ -73,3 +73,9 @@ const OBSTACLE_HP_SMALL_ROCK: int = 100
 const OBSTACLE_HP_LARGE_ROCK: int = 400
 const OBSTACLE_HP_TREE: int = 150
 const SHELL_OBSTACLE_DAMAGE: int = 50  # per-shot damage to an obstacle (independent of tank damage)
+
+# --- Scope (Plan 05) ---
+const SCOPE_FOV_2X: float = 40.0
+const SCOPE_FOV_4X: float = 20.0
+const SCOPE_FOV_8X: float = 10.0
+const SCOPE_ZOOMS: Array = [2, 4, 8]

@@ -3,6 +3,9 @@ extends Node
 
 const Messages = preload("res://common/protocol/messages.gd")
 
+signal scope_toggled
+signal zoom_cycled(direction: int)
+
 var _enabled: bool = false
 var _fire_latched: bool = false
 var _turret_yaw: float = 0.0
@@ -25,6 +28,12 @@ func _input(ev: InputEvent) -> void:
     elif ev is InputEventMouseButton:
         if ev.button_index == MOUSE_BUTTON_LEFT and ev.pressed:
             _fire_latched = true
+        elif ev.button_index == MOUSE_BUTTON_RIGHT and ev.pressed:
+            scope_toggled.emit()
+        elif ev.button_index == MOUSE_BUTTON_WHEEL_UP and ev.pressed:
+            zoom_cycled.emit(1)
+        elif ev.button_index == MOUSE_BUTTON_WHEEL_DOWN and ev.pressed:
+            zoom_cycled.emit(-1)
     elif ev is InputEventKey:
         if ev.pressed and ev.keycode == KEY_ESCAPE:
             Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
