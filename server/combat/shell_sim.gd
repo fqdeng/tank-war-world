@@ -116,7 +116,7 @@ func _obstacle_collision_radius(kind: int) -> float:
 func _obstacle_half_height(kind: int) -> float:
     match kind:
         0: return 1.2
-        1: return 2.5
+        1: return 4.0
         2: return 4.0
     return 1.0
 

@@ -72,7 +72,7 @@ const ENGINE_ACCEL_FACTOR_WHEN_DEAD: float = 0.5
 # the tank stops visually flush with the obstacle instead of with a gap.
 const TANK_COLLISION_RADIUS: float = 1.7      # tank body is 3x5m, half-width 1.5 + small buffer
 const OBSTACLE_RADIUS_SMALL_ROCK: float = 1.6  # box 3.2 → half-width 1.6
-const OBSTACLE_RADIUS_LARGE_ROCK: float = 3.5  # box 7.0 → half-width 3.5
+const OBSTACLE_RADIUS_LARGE_ROCK: float = 6.0  # box 12 → half-width 6
 const OBSTACLE_RADIUS_TREE: float = 0.7        # trunk base 0.7
 
 # --- Obstacle HP + shell damage (Plan 04) ---

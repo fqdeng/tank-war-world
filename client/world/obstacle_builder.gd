@@ -56,13 +56,13 @@ func _make_node(o) -> Node3D:
         1:  # LARGE_ROCK
             var mi := MeshInstance3D.new()
             var m := BoxMesh.new()
-            m.size = Vector3(7.0, 5.0, 7.0)
+            m.size = Vector3(12.0, 8.0, 12.0)
             mi.mesh = m
             var mat := StandardMaterial3D.new()
             mat.albedo_color = Color(0.45, 0.42, 0.4)
             mat.roughness = 1.0
             mi.material_override = mat
-            mi.position.y = 2.5
+            mi.position.y = 4.0
             n.add_child(mi)
         2:  # TREE
             var trunk := MeshInstance3D.new()
