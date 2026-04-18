@@ -1,0 +1,255 @@
+<h2>第三人称主视角的 HUD 布局：要多密集？</h2>
+<p class="subtitle">两种方向，各有侧重。点击你倾向的那个，或在终端说明想调整的地方。</p>
+
+<style>
+  .tank-mockup {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: linear-gradient(to bottom, #6b8a6b 0%, #5a6f4a 55%, #3a4a2a 100%);
+    border-radius: 8px;
+    overflow: hidden;
+    font-family: monospace;
+    color: #fff;
+    font-size: 11px;
+  }
+  .tank-body {
+    position: absolute;
+    left: 50%;
+    bottom: 25%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 70px;
+    background: #4a5a3a;
+    border: 2px solid #2a3a1a;
+  }
+  .tank-turret {
+    position: absolute;
+    left: 50%;
+    top: -18px;
+    transform: translateX(-50%);
+    width: 70px;
+    height: 40px;
+    background: #5a6a4a;
+    border: 2px solid #2a3a1a;
+  }
+  .tank-barrel {
+    position: absolute;
+    left: 50%;
+    top: -20px;
+    transform: translateX(-50%);
+    width: 8px;
+    height: 20px;
+    background: #2a3a1a;
+  }
+  .rock {
+    position: absolute;
+    background: #7a7a6a;
+    border: 2px solid #4a4a3a;
+    border-radius: 4px;
+  }
+  .tree {
+    position: absolute;
+    width: 18px;
+    height: 45px;
+    background: #3a5a2a;
+    border: 2px solid #1a2a0a;
+  }
+  .hud-panel {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 6px 8px;
+    font-size: 10px;
+    line-height: 1.4;
+  }
+  .crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 18px;
+  }
+  .hp-bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(255,255,255,0.15);
+    margin-top: 3px;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .hp-fill { height: 100%; background: linear-gradient(to right, #e55, #fa3); }
+  .hp-fill-green { height: 100%; background: linear-gradient(to right, #6d6, #3b3); }
+  .hp-fill-low { height: 100%; background: linear-gradient(to right, #f44, #a22); width: 35%; }
+  .dmg-zone {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+    margin: 2px 0;
+  }
+  .tank-silhouette {
+    width: 100px;
+    height: 70px;
+    position: relative;
+  }
+  .tank-silhouette .zone {
+    position: absolute;
+    border: 1px solid rgba(255,255,255,0.4);
+    background: rgba(100, 200, 100, 0.25);
+  }
+  .tank-silhouette .zone.damaged { background: rgba(255, 120, 60, 0.55); }
+  .tank-silhouette .zone.critical { background: rgba(255, 50, 50, 0.7); }
+  .minimap {
+    width: 110px;
+    height: 110px;
+    background: rgba(30, 40, 25, 0.75);
+    border: 2px solid rgba(255,255,255,0.3);
+    position: relative;
+  }
+  .minimap .dot { position: absolute; width: 4px; height: 4px; border-radius: 50%; }
+</style>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">方案 A — 极简（战术感、沉浸）</div>
+    <div class="mockup-body">
+      <div class="tank-mockup">
+        <div class="rock" style="left: 15%; top: 55%; width: 70px; height: 50px;"></div>
+        <div class="rock" style="right: 20%; top: 60%; width: 55px; height: 40px;"></div>
+        <div class="tree" style="left: 10%; top: 38%;"></div>
+        <div class="tree" style="right: 12%; top: 40%;"></div>
+        <div class="tree" style="right: 35%; top: 36%;"></div>
+        <div class="tank-body">
+          <div class="tank-turret">
+            <div class="tank-barrel"></div>
+          </div>
+        </div>
+
+        <!-- Crosshair -->
+        <div class="crosshair">+</div>
+
+        <!-- Bottom-left: part damage as silhouette only -->
+        <div class="hud-panel" style="left: 12px; bottom: 12px; padding: 6px;">
+          <div class="label" style="font-size: 9px; margin-bottom: 4px;">DAMAGE</div>
+          <div class="tank-silhouette" style="width: 80px; height: 50px;">
+            <div class="zone" style="left: 20%; top: 30%; width: 60%; height: 45%;"></div>
+            <div class="zone damaged" style="left: 30%; top: 5%; width: 40%; height: 30%;"></div>
+            <div class="zone critical" style="left: 0%; top: 50%; width: 18%; height: 35%;"></div>
+            <div class="zone" style="right: 0%; top: 50%; width: 18%; height: 35%;"></div>
+          </div>
+        </div>
+
+        <!-- Bottom-right: minimal ammo + speed -->
+        <div class="hud-panel" style="right: 12px; bottom: 12px; font-size: 14px; line-height: 1.1;">
+          <div style="font-weight: bold;">AP × 18</div>
+          <div style="font-size: 10px; color: #aaa;">24 km/h</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">方案 B — 信息丰富（战况清晰）</div>
+    <div class="mockup-body">
+      <div class="tank-mockup">
+        <div class="rock" style="left: 15%; top: 55%; width: 70px; height: 50px;"></div>
+        <div class="rock" style="right: 20%; top: 60%; width: 55px; height: 40px;"></div>
+        <div class="tree" style="left: 10%; top: 38%;"></div>
+        <div class="tree" style="right: 12%; top: 40%;"></div>
+        <div class="tree" style="right: 35%; top: 36%;"></div>
+        <div class="tank-body">
+          <div class="tank-turret">
+            <div class="tank-barrel"></div>
+          </div>
+        </div>
+
+        <!-- Top-left: minimap -->
+        <div class="hud-panel" style="left: 10px; top: 10px; padding: 4px;">
+          <div class="minimap">
+            <div class="dot" style="background: #6cf; left: 50%; top: 50%;"></div>
+            <div class="dot" style="background: #f66; left: 30%; top: 25%;"></div>
+            <div class="dot" style="background: #f66; left: 70%; top: 40%;"></div>
+            <div class="dot" style="background: #6cf; left: 45%; top: 75%;"></div>
+          </div>
+        </div>
+
+        <!-- Top-center: match timer + score -->
+        <div class="hud-panel" style="left: 50%; top: 10px; transform: translateX(-50%); text-align: center; min-width: 180px;">
+          <div style="font-size: 14px; font-weight: bold;">01:23:45</div>
+          <div style="display: flex; justify-content: space-between; margin-top: 3px;">
+            <span style="color: #6cf;">RED 420</span>
+            <span style="color: #fa6;">/ 1000</span>
+            <span style="color: #f66;">BLU 380</span>
+          </div>
+        </div>
+
+        <!-- Top-right: team list -->
+        <div class="hud-panel" style="right: 10px; top: 10px; min-width: 100px;">
+          <div class="label" style="font-size: 8px;">TEAM RED</div>
+          <div>● Ally1 <span style="color:#6d6">HP</span></div>
+          <div>● Ally2 <span style="color:#fa3">HP</span></div>
+          <div>● YOU</div>
+          <div style="color: #888;">○ Ally4 †</div>
+        </div>
+
+        <!-- Crosshair -->
+        <div class="crosshair">+</div>
+
+        <!-- Bottom-left: full silhouette + part list -->
+        <div class="hud-panel" style="left: 10px; bottom: 10px; min-width: 210px;">
+          <div class="label" style="font-size: 8px; margin-bottom: 4px;">DAMAGE</div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <div class="tank-silhouette" style="width: 70px; height: 50px; flex-shrink: 0;">
+              <div class="zone" style="left: 20%; top: 30%; width: 60%; height: 45%;"></div>
+              <div class="zone damaged" style="left: 30%; top: 5%; width: 40%; height: 30%;"></div>
+              <div class="zone critical" style="left: 0%; top: 50%; width: 18%; height: 35%;"></div>
+              <div class="zone" style="right: 0%; top: 50%; width: 18%; height: 35%;"></div>
+            </div>
+            <div style="flex: 1; font-size: 9px;">
+              <div class="dmg-zone"><span>Hull</span><div class="hp-bar" style="width: 40px;"><div class="hp-fill-green" style="width: 90%;"></div></div></div>
+              <div class="dmg-zone"><span>Turret</span><div class="hp-bar" style="width: 40px;"><div class="hp-fill" style="width: 55%;"></div></div></div>
+              <div class="dmg-zone"><span>L-Track</span><div class="hp-bar" style="width: 40px;"><div class="hp-fill-low"></div></div></div>
+              <div class="dmg-zone"><span>R-Track</span><div class="hp-bar" style="width: 40px;"><div class="hp-fill-green" style="width: 100%;"></div></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom-right: ammo + speed + reload -->
+        <div class="hud-panel" style="right: 10px; bottom: 10px; min-width: 130px;">
+          <div style="display: flex; justify-content: space-between; font-size: 14px;"><span>AP</span><span>18</span></div>
+          <div class="hp-bar"><div class="hp-fill-green" style="width: 70%;"></div></div>
+          <div style="font-size: 9px; color: #aaa; margin-top: 2px;">RELOAD 2.1s</div>
+          <div style="border-top: 1px solid rgba(255,255,255,0.15); margin-top: 4px; padding-top: 3px; display: flex; justify-content: space-between;">
+            <span>SPD</span><span>24 km/h</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top: 20px;">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>极简 HUD</h3>
+      <p>只有准星 + 左下部位剪影 + 右下弹药速度。沉浸感强，战场信息靠观察和小地图按键（Tab/M 呼出）。方块美术加上克制 HUD 会很有格调。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>信息丰富 HUD</h3>
+      <p>常驻小地图、队伍名单、计时/比分、剪影+部位血条并列、弹药+装填+速度。新手一眼看懂战局，但画面更"忙"。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>混合：默认简洁，可切换详细</h3>
+      <p>默认 A 的极简布局，按 <code>Tab</code> 临时呼出 B 的详细面板（含小地图、队友状态、部位血条）。平时沉浸，需要时有全部信息。</p>
+    </div>
+  </div>
+</div>
