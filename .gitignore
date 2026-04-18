@@ -1,3 +1,18 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Build output
+/build/
+/export/
+*.zip
+*.pck
+
+# Superpowers brainstorm session data
+.superpowers/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
