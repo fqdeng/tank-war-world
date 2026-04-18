@@ -9,6 +9,9 @@ const TerrainGenerator = preload("res://shared/world/terrain_generator.gd")
 const Ballistics = preload("res://shared/combat/ballistics.gd")
 const PartDamage = preload("res://shared/combat/part_damage.gd")
 const ShellSim = preload("res://server/combat/shell_sim.gd")
+const AIBrain = preload("res://server/ai/ai_brain.gd")
+
+const TARGET_TOTAL_TANKS: int = 10  # fill with AI until this many alive tanks exist
 
 var _world
 var _ws_server
@@ -18,6 +21,7 @@ var _tick: int = 0
 
 var _latest_input: Dictionary = {}
 var _respawns: Dictionary = {}
+var _ai_brains: Dictionary = {}  # player_id → AIBrain
 
 func set_world(w) -> void:
     _world = w
@@ -46,6 +50,23 @@ func _process(delta: float) -> void:
 func _step_tick(dt: float) -> void:
     _tick += 1
     _world.current_tick = _tick
+
+    _maintain_ai_population()
+
+    # Run AI brains to produce their input for this tick
+    for pid in _ai_brains.keys():
+        if not _world.tanks.has(pid):
+            continue
+        var st = _world.tanks[pid]
+        if not st.alive:
+            continue
+        _latest_input[pid] = _ai_brains[pid].step(st, _world, dt)
+        # AI firing: honor its brain's fire_pressed with reload/ammo checks
+        if _latest_input[pid].get("fire_pressed", false) and st.can_fire():
+            # Apply aim from latest input into state (so shell direction uses AI's aim)
+            st.turret_yaw = float(_latest_input[pid].get("turret_yaw", st.turret_yaw))
+            st.gun_pitch = float(_latest_input[pid].get("gun_pitch", st.gun_pitch))
+            _spawn_shell(pid, st, st.turret_yaw, st.gun_pitch)
 
     for pid in _world.tanks:
         var state = _world.tanks[pid]
@@ -151,29 +172,72 @@ func _on_fire_received(peer_id: int, _fire_msg) -> void:
     if pid == 0 or not _world.tanks.has(pid):
         return
     var state = _world.tanks[pid]
+    var latest_inp: Dictionary = _latest_input.get(pid, {})
+    var aim_turret_yaw: float = float(latest_inp.get("turret_yaw", state.turret_yaw))
+    var aim_gun_pitch: float = float(latest_inp.get("gun_pitch", state.gun_pitch))
+    _spawn_shell(pid, state, aim_turret_yaw, aim_gun_pitch)
+
+# Shared shell spawn (used by real players and AI).
+func _spawn_shell(shooter_id: int, state, aim_turret_yaw: float, aim_gun_pitch: float) -> void:
     if not state.can_fire():
         return
     state.ammo -= 1
     state.reload_remaining = Constants.TANK_RELOAD_S
-    # Use the latest client-reported aim (not state.*) so the shell direction matches
-    # what the client was looking at at fire time — fixes the 1-tick desync where the
-    # server applies input AFTER the FIRE signal handler runs.
-    var latest_inp: Dictionary = _latest_input.get(pid, {})
-    var aim_turret_yaw: float = float(latest_inp.get("turret_yaw", state.turret_yaw))
-    var aim_gun_pitch: float = float(latest_inp.get("gun_pitch", state.gun_pitch))
     var muzzle_offset := 2.5
     var origin: Vector3 = state.pos + Vector3(0, 1.6, 0)
     var world_turret_yaw: float = state.yaw + aim_turret_yaw
     var velocity: Vector3 = Ballistics.initial_velocity(world_turret_yaw, aim_gun_pitch, Constants.SHELL_INITIAL_SPEED)
     origin += velocity.normalized() * muzzle_offset
-    var shell = _shell_sim.spawn(pid, origin, velocity)
+    var shell = _shell_sim.spawn(shooter_id, origin, velocity)
     var msg := Messages.ShellSpawned.new()
     msg.shell_id = shell.id
-    msg.shooter_id = pid
+    msg.shooter_id = shooter_id
     msg.origin = origin
     msg.velocity = velocity
     msg.fire_time_ms = Time.get_ticks_msec()
     _ws_server.broadcast(MessageType.SHELL_SPAWNED, msg.encode())
+
+# Keep total tanks at TARGET_TOTAL_TANKS by adding/removing AI, balancing teams.
+func _maintain_ai_population() -> void:
+    var target_per_team: int = TARGET_TOTAL_TANKS / 2
+    var humans: Array = [0, 0]
+    var ais: Array = [0, 0]
+    for pid in _world.tanks:
+        var s = _world.tanks[pid]
+        if s.is_ai:
+            ais[s.team] += 1
+        else:
+            humans[s.team] += 1
+    # For each team, add AI up to target - humans
+    for team in [0, 1]:
+        var want_ai: int = max(0, target_per_team - humans[team])
+        while ais[team] < want_ai:
+            _spawn_ai(team)
+            ais[team] += 1
+        while ais[team] > want_ai:
+            _despawn_ai_in_team(team)
+            ais[team] -= 1
+
+func _spawn_ai(team: int) -> void:
+    var pid: int = _world.allocate_player_id()
+    var st = _world.spawn_tank(pid, team)
+    st.is_ai = true
+    var brain := AIBrain.new()
+    brain.setup(pid, _world)
+    _ai_brains[pid] = brain
+
+func _despawn_ai_in_team(team: int) -> void:
+    for pid in _ai_brains.keys():
+        if not _world.tanks.has(pid):
+            _ai_brains.erase(pid)
+            continue
+        var s = _world.tanks[pid]
+        if s.is_ai and s.team == team:
+            _world.remove_tank(pid)
+            _latest_input.erase(pid)
+            _respawns.erase(pid)
+            _ai_brains.erase(pid)
+            return
 
 func _on_shell_hit(shell, victim_id: int, hit_point: Vector3, part_id: int, obstacle_id: int = 0, obstacle_kind: int = 0) -> void:
     # Obstacle hit?

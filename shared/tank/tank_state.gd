@@ -18,6 +18,7 @@ var alive: bool = true
 var respawn_remaining: float = 0.0
 var last_acked_input_tick: int = 0  # last client-input tick this server state has consumed
 var ammo_regen_accum: float = 0.0   # server-side: accumulates dt toward +1 ammo
+var is_ai: bool = false             # server-only flag, not networked
 
 # Parts: Part enum int → float sub HP
 var parts: Dictionary = {}
