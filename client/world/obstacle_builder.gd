@@ -3,7 +3,13 @@ extends Node3D
 
 const ObstaclePlacer = preload("res://shared/world/obstacle_placer.gd")
 
-func build(world_seed: int, heightmap: PackedFloat32Array, terrain_size: int) -> void:
+# obstacle_id → Node3D (only for currently-alive obstacles)
+var _nodes: Dictionary = {}
+
+func build(world_seed: int, heightmap: PackedFloat32Array, terrain_size: int, already_destroyed: PackedInt32Array = PackedInt32Array()) -> void:
+    var destroyed: Dictionary = {}
+    for oid in already_destroyed:
+        destroyed[oid] = true
     var obs := ObstaclePlacer.place(
         world_seed, heightmap, terrain_size,
         Constants.SMALL_ROCK_COUNT,
@@ -11,15 +17,32 @@ func build(world_seed: int, heightmap: PackedFloat32Array, terrain_size: int) ->
         Constants.TREE_COUNT,
     )
     for o in obs:
+        if destroyed.has(o.id):
+            continue
         var node := _make_node(o)
         node.position = o.pos
         node.rotation.y = o.yaw
         add_child(node)
+        _nodes[o.id] = node
+
+func destroy_obstacle(id: int) -> void:
+    if not _nodes.has(id):
+        return
+    var node: Node3D = _nodes[id]
+    _nodes.erase(id)
+    _play_destruction(node)
+
+func _play_destruction(node: Node3D) -> void:
+    var tw := node.create_tween()
+    tw.set_parallel(true)
+    tw.tween_property(node, "scale", Vector3(0.1, 0.1, 0.1), 0.4)
+    tw.tween_property(node, "position:y", node.position.y - 1.0, 0.4)
+    tw.chain().tween_callback(node.queue_free)
 
 func _make_node(o) -> Node3D:
     var n := Node3D.new()
     match o.kind:
-        0:  # SMALL_ROCK (~2x Plan 01 size)
+        0:  # SMALL_ROCK
             var mi := MeshInstance3D.new()
             var m := BoxMesh.new()
             m.size = Vector3(3.2, 2.4, 3.2)
@@ -30,7 +53,7 @@ func _make_node(o) -> Node3D:
             mi.material_override = mat
             mi.position.y = 1.2
             n.add_child(mi)
-        1:  # LARGE_ROCK (~2x)
+        1:  # LARGE_ROCK
             var mi := MeshInstance3D.new()
             var m := BoxMesh.new()
             m.size = Vector3(7.0, 5.0, 7.0)
@@ -41,7 +64,7 @@ func _make_node(o) -> Node3D:
             mi.material_override = mat
             mi.position.y = 2.5
             n.add_child(mi)
-        2:  # TREE (taller trunk, bigger crown)
+        2:  # TREE
             var trunk := MeshInstance3D.new()
             var trunk_mesh := CylinderMesh.new()
             trunk_mesh.top_radius = 0.5

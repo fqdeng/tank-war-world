@@ -24,7 +24,8 @@ func set_world(w) -> void:
     _shell_sim = ShellSim.new()
     add_child(_shell_sim)
     _shell_sim.set_world(w)
-    _shell_sim.set_hit_callback(_on_shell_hit)
+    _shell_sim.set_hit_callback(func(shell, victim_id, point, part_id, obstacle_id, obstacle_kind):
+        _on_shell_hit(shell, victim_id, point, part_id, obstacle_id, obstacle_kind))
 
 func set_ws_server(s) -> void:
     _ws_server = s
@@ -99,6 +100,10 @@ func _on_client_connected(peer_id: int, connect_msg) -> void:
     ack.team = team
     ack.world_seed = _world.world_seed
     ack.spawn_pos = state.pos
+    var arr := PackedInt32Array()
+    for oid in _world.destroyed_obstacle_ids.keys():
+        arr.append(oid)
+    ack.destroyed_obstacle_ids = arr
     _ws_server.send_to_peer(peer_id, MessageType.CONNECT_ACK, ack.encode())
 
 func _on_client_disconnected(peer_id: int) -> void:
@@ -147,7 +152,23 @@ func _on_fire_received(peer_id: int, _fire_msg) -> void:
     msg.fire_time_ms = Time.get_ticks_msec()
     _ws_server.broadcast(MessageType.SHELL_SPAWNED, msg.encode())
 
-func _on_shell_hit(shell, victim_id: int, hit_point: Vector3, part_id: int) -> void:
+func _on_shell_hit(shell, victim_id: int, hit_point: Vector3, part_id: int, obstacle_id: int = 0, obstacle_kind: int = 0) -> void:
+    # Obstacle hit?
+    if obstacle_id != 0:
+        var destroyed: bool = _world.apply_obstacle_damage(obstacle_id, obstacle_kind, Constants.TANK_FIRE_DAMAGE)
+        var hit_msg_o := Messages.Hit.new()
+        hit_msg_o.shell_id = shell.id
+        hit_msg_o.shooter_id = shell.shooter_id
+        hit_msg_o.victim_id = 0
+        hit_msg_o.damage = Constants.TANK_FIRE_DAMAGE
+        hit_msg_o.part_id = 0
+        hit_msg_o.hit_point = hit_point
+        _ws_server.broadcast(MessageType.HIT, hit_msg_o.encode())
+        if destroyed:
+            var od_msg := Messages.ObstacleDestroyed.new()
+            od_msg.obstacle_id = obstacle_id
+            _ws_server.broadcast(MessageType.OBSTACLE_DESTROYED, od_msg.encode())
+        return
     if victim_id == 0:
         var hit_msg := Messages.Hit.new()
         hit_msg.shell_id = shell.id
@@ -184,6 +205,8 @@ func _resolve_obstacle_collision(pos: Vector3) -> Vector3:
     var push_z: float = 0.0
     var tank_r: float = Constants.TANK_COLLISION_RADIUS
     for o in _world.obstacles:
+        if _world.is_obstacle_destroyed(o.id):
+            continue
         var o_r: float = _obstacle_collision_radius(o.kind)
         var min_d: float = tank_r + o_r
         var dx: float = pos.x - o.pos.x

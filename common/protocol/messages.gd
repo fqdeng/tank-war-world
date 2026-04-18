@@ -28,6 +28,7 @@ class ConnectAck:
     var team: int = 0
     var world_seed: int = 0
     var spawn_pos: Vector3 = Vector3.ZERO
+    var destroyed_obstacle_ids: PackedInt32Array = PackedInt32Array()
 
     func encode() -> PackedByteArray:
         var buf := PackedByteArray()
@@ -35,6 +36,9 @@ class ConnectAck:
         Codec.write_u8(buf, team)
         Codec.write_u32(buf, world_seed)
         Codec.write_vec3(buf, spawn_pos)
+        Codec.write_u16(buf, destroyed_obstacle_ids.size())
+        for oid in destroyed_obstacle_ids:
+            Codec.write_u32(buf, oid)
         return buf
 
     static func decode(buf: PackedByteArray) -> ConnectAck:
@@ -44,6 +48,11 @@ class ConnectAck:
         m.team = Codec.read_u8(buf, c)
         m.world_seed = Codec.read_u32(buf, c)
         m.spawn_pos = Codec.read_vec3(buf, c)
+        var n := Codec.read_u16(buf, c)
+        var arr := PackedInt32Array()
+        for i in n:
+            arr.append(Codec.read_u32(buf, c))
+        m.destroyed_obstacle_ids = arr
         return m
 
 # ---- InputMsg (client → server, 20 Hz) ----
@@ -243,4 +252,19 @@ class Respawn:
         var c := [0]
         m.player_id = Codec.read_u16(buf, c)
         m.pos = Codec.read_vec3(buf, c)
+        return m
+
+# ---- ObstacleDestroyed (server → all clients) ----
+class ObstacleDestroyed:
+    var obstacle_id: int = 0
+
+    func encode() -> PackedByteArray:
+        var buf := PackedByteArray()
+        Codec.write_u32(buf, obstacle_id)
+        return buf
+
+    static func decode(buf: PackedByteArray) -> ObstacleDestroyed:
+        var m := ObstacleDestroyed.new()
+        var c := [0]
+        m.obstacle_id = Codec.read_u32(buf, c)
         return m

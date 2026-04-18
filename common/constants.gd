@@ -67,3 +67,8 @@ const TANK_COLLISION_RADIUS: float = 1.7      # tank body is 3x5m, half-width 1.
 const OBSTACLE_RADIUS_SMALL_ROCK: float = 1.6  # box 3.2 → half-width 1.6
 const OBSTACLE_RADIUS_LARGE_ROCK: float = 3.5  # box 7.0 → half-width 3.5
 const OBSTACLE_RADIUS_TREE: float = 0.7        # trunk base 0.7
+
+# --- Obstacle HP (Plan 04) ---
+const OBSTACLE_HP_SMALL_ROCK: int = 100
+const OBSTACLE_HP_LARGE_ROCK: int = 400
+const OBSTACLE_HP_TREE: int = 150

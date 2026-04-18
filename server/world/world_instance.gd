@@ -20,6 +20,38 @@ var _next_player_id: int = 1
 # Tick counter (set by TickLoop)
 var current_tick: int = 0
 
+# Obstacle state (Plan 04)
+# obstacle_id → current HP (absent = intact at max)
+var obstacle_hp: Dictionary = {}
+# obstacle_id → true for destroyed obstacles (fast membership lookup)
+var destroyed_obstacle_ids: Dictionary = {}
+
+func obstacle_max_hp(kind: int) -> int:
+    match kind:
+        0: return Constants.OBSTACLE_HP_SMALL_ROCK
+        1: return Constants.OBSTACLE_HP_LARGE_ROCK
+        2: return Constants.OBSTACLE_HP_TREE
+    return 100
+
+func obstacle_current_hp(id: int, kind: int) -> int:
+    return obstacle_hp.get(id, obstacle_max_hp(kind))
+
+# Returns true if this hit destroyed the obstacle.
+func apply_obstacle_damage(id: int, kind: int, damage: int) -> bool:
+    if destroyed_obstacle_ids.has(id):
+        return false
+    var current: int = obstacle_current_hp(id, kind)
+    current -= damage
+    if current <= 0:
+        destroyed_obstacle_ids[id] = true
+        obstacle_hp.erase(id)
+        return true
+    obstacle_hp[id] = current
+    return false
+
+func is_obstacle_destroyed(id: int) -> bool:
+    return destroyed_obstacle_ids.has(id)
+
 func _init(seed_: int = 0) -> void:
     world_seed = seed_
     terrain_size = Constants.WORLD_SIZE_M

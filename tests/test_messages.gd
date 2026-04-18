@@ -17,12 +17,22 @@ func test_connect_ack_roundtrip() -> void:
     msg.team = 0
     msg.world_seed = 123456789
     msg.spawn_pos = Vector3(100, 5, 200)
+    msg.destroyed_obstacle_ids = PackedInt32Array([1, 42, 999])
     var bytes := msg.encode()
     var decoded := Messages.ConnectAck.decode(bytes)
     assert_eq(decoded.player_id, 7)
     assert_eq(decoded.team, 0)
     assert_eq(decoded.world_seed, 123456789)
     assert_almost_eq(decoded.spawn_pos.x, 100.0, 0.001)
+    assert_eq(decoded.destroyed_obstacle_ids.size(), 3)
+    assert_eq(decoded.destroyed_obstacle_ids[2], 999)
+
+func test_obstacle_destroyed_roundtrip() -> void:
+    var msg := Messages.ObstacleDestroyed.new()
+    msg.obstacle_id = 4242
+    var bytes := msg.encode()
+    var decoded := Messages.ObstacleDestroyed.decode(bytes)
+    assert_eq(decoded.obstacle_id, 4242)
 
 func test_input_roundtrip() -> void:
     var msg := Messages.InputMsg.new()

@@ -15,4 +15,5 @@ enum {
     PING = 9,            # server → client
     PONG = 10,           # client → server
     DISCONNECT = 11,     # either direction
+    OBSTACLE_DESTROYED = 12,  # server → all clients
 }

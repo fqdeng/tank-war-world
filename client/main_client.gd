@@ -91,12 +91,15 @@ func _on_message(msg_type: int, payload: PackedByteArray) -> void:
             _handle_death(Messages.Death.decode(payload))
         MessageType.RESPAWN:
             _handle_respawn(Messages.Respawn.decode(payload))
+        MessageType.OBSTACLE_DESTROYED:
+            var od = Messages.ObstacleDestroyed.decode(payload)
+            _obstacle_builder.destroy_obstacle(od.obstacle_id)
 
 func _handle_connect_ack(msg) -> void:
     _my_player_id = msg.player_id
     print("[Client] CONNECT_ACK: player_id=%d team=%d seed=%d spawn=%s" % [msg.player_id, msg.team, msg.world_seed, msg.spawn_pos])
     _terrain_builder.build(msg.world_seed)
-    _obstacle_builder.build(msg.world_seed, _terrain_builder.heightmap, _terrain_builder.terrain_size)
+    _obstacle_builder.build(msg.world_seed, _terrain_builder.heightmap, _terrain_builder.terrain_size, msg.destroyed_obstacle_ids)
     _camera.set_heightmap(_terrain_builder.heightmap, _terrain_builder.terrain_size)
     # Initialize client-side prediction for own tank.
     var ls := TankState.new()

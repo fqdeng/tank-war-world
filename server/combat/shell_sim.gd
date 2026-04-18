@@ -48,7 +48,7 @@ func tick(dt: float) -> void:
         if hit_info["hit"]:
             to_remove.append(s)
             if _hit_callback.is_valid():
-                _hit_callback.call(s, hit_info["victim_id"], hit_info["point"], hit_info["part_id"])
+                _hit_callback.call(s, hit_info["victim_id"], hit_info["point"], hit_info["part_id"], hit_info.get("obstacle_id", 0), hit_info.get("obstacle_kind", 0))
     for s in to_remove:
         _shells.erase(s)
 
@@ -62,7 +62,7 @@ func _swept_collide(s: Shell, t0: float, t1: float, subs: int) -> Dictionary:
         if _world.heightmap.size() > 0:
             var terrain_h: float = TerrainGenerator.sample_height(_world.heightmap, _world.terrain_size, pos.x, pos.z)
             if pos.y <= terrain_h:
-                return {"hit": true, "victim_id": 0, "point": Vector3(pos.x, terrain_h, pos.z), "part_id": 0}
+                return {"hit": true, "victim_id": 0, "point": Vector3(pos.x, terrain_h, pos.z), "part_id": 0, "obstacle_id": 0, "obstacle_kind": 0}
         # Tanks
         for pid in _world.tanks:
             if pid == s.shooter_id:
@@ -84,9 +84,41 @@ func _swept_collide(s: Shell, t0: float, t1: float, subs: int) -> Dictionary:
             var closest: Vector3 = prev_pos + seg_norm * proj
             if closest.distance_to(center) <= 3.0:
                 var part: int = PartClassifier.classify(target.pos, target.yaw, closest)
-                return {"hit": true, "victim_id": pid, "point": closest, "part_id": part}
+                return {"hit": true, "victim_id": pid, "point": closest, "part_id": part, "obstacle_id": 0, "obstacle_kind": 0}
+        # Obstacles (skip destroyed)
+        for o in _world.obstacles:
+            if _world.is_obstacle_destroyed(o.id):
+                continue
+            var o_r: float = _obstacle_collision_radius(o.kind)
+            var half_h: float = _obstacle_half_height(o.kind)
+            var o_center: Vector3 = o.pos + Vector3(0, half_h, 0)
+            var oseg: Vector3 = pos - prev_pos
+            var oseg_len: float = oseg.length()
+            if oseg_len < 0.001:
+                continue
+            var oseg_norm: Vector3 = oseg / oseg_len
+            var o_to: Vector3 = o_center - prev_pos
+            var oproj: float = o_to.dot(oseg_norm)
+            oproj = clamp(oproj, 0.0, oseg_len)
+            var o_closest: Vector3 = prev_pos + oseg_norm * oproj
+            if o_closest.distance_to(o_center) <= o_r:
+                return {"hit": true, "victim_id": 0, "point": o_closest, "part_id": 0, "obstacle_id": o.id, "obstacle_kind": o.kind}
         prev_pos = pos
-    return {"hit": false, "victim_id": 0, "point": Vector3.ZERO, "part_id": 0}
+    return {"hit": false, "victim_id": 0, "point": Vector3.ZERO, "part_id": 0, "obstacle_id": 0, "obstacle_kind": 0}
+
+func _obstacle_collision_radius(kind: int) -> float:
+    match kind:
+        0: return Constants.OBSTACLE_RADIUS_SMALL_ROCK
+        1: return Constants.OBSTACLE_RADIUS_LARGE_ROCK
+        2: return Constants.OBSTACLE_RADIUS_TREE
+    return 1.0
+
+func _obstacle_half_height(kind: int) -> float:
+    match kind:
+        0: return 1.2
+        1: return 2.5
+        2: return 4.0
+    return 1.0
 
 func all_active() -> Array:
     return _shells
