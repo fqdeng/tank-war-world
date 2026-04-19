@@ -34,11 +34,11 @@ func _resize_radar() -> void:
     # aren't overlapped by it.
     var labels_bottom_offset: float = -(s + margin + 8.0)
     if _hp:
-        _hp.offset_top = labels_bottom_offset - 24.0
-        _hp.offset_bottom = labels_bottom_offset - 4.0
+        _hp.offset_top = labels_bottom_offset - 48.0
+        _hp.offset_bottom = labels_bottom_offset - 8.0
     if _id:
         _id.offset_top = labels_bottom_offset
-        _id.offset_bottom = labels_bottom_offset + 20.0
+        _id.offset_bottom = labels_bottom_offset + 40.0
 
 func set_status(s: String) -> void:
     if _status:
@@ -97,7 +97,9 @@ func add_hit_line(attacker: String, attacker_team: int, victim: String, victim_t
     lbl.fit_content = true
     lbl.scroll_active = false
     lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-    lbl.custom_minimum_size = Vector2(0, 22)
+    lbl.custom_minimum_size = Vector2(0, 44)
+    lbl.add_theme_font_size_override("normal_font_size", 32)
+    lbl.add_theme_font_size_override("bold_font_size", 32)
     lbl.text = "[color=%s]%s[/color] 击中了 [color=%s]%s[/color]  [color=#ffd070]-%d HP[/color]" % [atk_color, attacker, vic_color, victim, damage]
     _combat_log.add_child(lbl)
     _combat_log.move_child(lbl, 0)  # newest on top
