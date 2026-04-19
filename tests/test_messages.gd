@@ -54,11 +54,13 @@ func test_input_roundtrip() -> void:
 func test_snapshot_roundtrip_multiple_tanks() -> void:
     var msg := Messages.Snapshot.new()
     msg.tick = 1234
+    msg.server_time_ms = 9876543
     msg.add_tank(1, 0, Vector3(10, 0, 20), 0.5, 0.1, 0.0, 850, 777, 24, 0.0, 0.0)
     msg.add_tank(2, 1, Vector3(-30, 2, 40), 1.5, 0.2, 0.3, 600, 888, 12, 1.75, 6.3)
     var bytes := msg.encode()
     var decoded := Messages.Snapshot.decode(bytes)
     assert_eq(decoded.tick, 1234)
+    assert_eq(decoded.server_time_ms, 9876543)
     assert_eq(decoded.tanks.size(), 2)
     assert_eq(decoded.tanks[0].player_id, 1)
     assert_eq(decoded.tanks[0].hp, 850)
@@ -69,6 +71,22 @@ func test_snapshot_roundtrip_multiple_tanks() -> void:
     assert_almost_eq(decoded.tanks[1].reload_remaining, 1.75, 0.001)
     assert_almost_eq(decoded.tanks[0].turret_regen_remaining, 0.0, 0.001)
     assert_almost_eq(decoded.tanks[1].turret_regen_remaining, 6.3, 0.001)
+
+func test_ping_roundtrip() -> void:
+    var msg := Messages.Ping.new()
+    msg.client_time_ms = 123456
+    var bytes := msg.encode()
+    var decoded := Messages.Ping.decode(bytes)
+    assert_eq(decoded.client_time_ms, 123456)
+
+func test_pong_roundtrip() -> void:
+    var msg := Messages.Pong.new()
+    msg.client_time_ms = 123456
+    msg.server_time_ms = 789012
+    var bytes := msg.encode()
+    var decoded := Messages.Pong.decode(bytes)
+    assert_eq(decoded.client_time_ms, 123456)
+    assert_eq(decoded.server_time_ms, 789012)
 
 func test_fire_roundtrip() -> void:
     var msg := Messages.Fire.new()

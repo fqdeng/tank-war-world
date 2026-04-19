@@ -34,3 +34,24 @@ func test_buffer_capped() -> void:
         interp.push_snapshot(i * 50, Vector3(i, 0, 0), 0.0, 0.0, 0.0, 900)
     var r = interp.sample(40 * 50 + 50)
     assert_almost_eq(r["pos"].x, 39.0, 0.001)
+
+func test_set_delay_ms_clamps_and_affects_sample() -> void:
+    var interp := Interpolation.new()
+    # Delay should clamp into [60, 300] so an off-the-charts value doesn't
+    # produce negative or unbounded target_t.
+    interp.set_delay_ms(5)
+    assert_eq(interp.get_delay_ms(), 60)
+    interp.set_delay_ms(9999)
+    assert_eq(interp.get_delay_ms(), 300)
+    # Two snapshots at t=1000/2000; sample at now_ms=1500 with two different
+    # delays — a larger delay shifts target_t earlier, yielding earlier pos.
+    #   delay=100 → target=1400 → 40% between 1000 and 2000 → pos.x=40
+    #   delay=200 → target=1300 → 30% → pos.x=30
+    interp.push_snapshot(1000, Vector3(0, 0, 0), 0.0, 0.0, 0.0, 900)
+    interp.push_snapshot(2000, Vector3(100, 0, 200), 0.0, 0.0, 0.0, 900)
+    interp.set_delay_ms(100)
+    var r1 = interp.sample(1500)
+    assert_almost_eq(r1["pos"].x, 40.0, 0.01)
+    interp.set_delay_ms(200)
+    var r2 = interp.sample(1500)
+    assert_almost_eq(r2["pos"].x, 30.0, 0.01)

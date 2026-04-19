@@ -13,6 +13,7 @@ extends CanvasLayer
 @onready var _kill_label: Label = $KillLabel
 @onready var _respawn_label: Label = $RespawnLabel
 @onready var _turret_damage_label: Label = $TurretDamageLabel
+@onready var _net_stats: Label = $NetStatsLabel
 var _hit_tween: Tween
 var _kill_tween: Tween
 
@@ -142,3 +143,19 @@ func set_reload(remaining_s: float, total_s: float) -> void:
         return
     var frac: float = 1.0 - clamp(remaining_s / total_s, 0.0, 1.0)
     _reload.value = frac
+
+# Bottom-right network overlay. ping_ms comes from the RTT EMA (RFC6298-style);
+# up/down are payload byte counts over a rolling 1 s window (WebSocket frame
+# overhead isn't counted — treat as a lower bound).
+func set_net_stats(ping_ms: float, up_bps: int, down_bps: int) -> void:
+    if _net_stats == null:
+        return
+    # ASCII only — the web font subset (tools/subset_font.sh) excludes arrow
+    # glyphs, so avoid ↑/↓ here or they render as tofu on the browser build.
+    var ping_str: String = "--" if ping_ms <= 0.0 else "%d ms" % int(round(ping_ms))
+    _net_stats.text = "PING %s\nTX  %s\nRX  %s" % [ping_str, _fmt_bps(up_bps), _fmt_bps(down_bps)]
+
+func _fmt_bps(b: int) -> String:
+    if b >= 1024:
+        return "%.1f KB/s" % (float(b) / 1024.0)
+    return "%d B/s" % b

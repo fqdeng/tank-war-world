@@ -12,8 +12,8 @@ enum {
     HIT = 6,             # server → all clients
     DEATH = 7,           # server → all clients
     RESPAWN = 8,         # server → affected client
-    PING = 9,            # server → client
-    PONG = 10,           # client → server
+    PING = 9,            # client → server (~1 Hz)
+    PONG = 10,           # server → client (echoes ping + server time for RTT/clock sync)
     DISCONNECT = 11,     # either direction
     OBSTACLE_DESTROYED = 12,  # server → all clients
 }

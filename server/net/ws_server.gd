@@ -59,6 +59,15 @@ func _handle_packet(peer_id: int, packet: PackedByteArray) -> void:
         MessageType.FIRE:
             var msg := Messages.Fire.decode(env.payload)
             emit_signal("fire_received", peer_id, msg)
+        MessageType.PING:
+            # Reply immediately on the poll thread so PONG latency isn't delayed
+            # by tick-loop gating. Echoes client_time_ms + stamps server_time_ms
+            # so the client can compute RTT and refine its server-clock estimate.
+            var ping := Messages.Ping.decode(env.payload)
+            var pong := Messages.Pong.new()
+            pong.client_time_ms = ping.client_time_ms
+            pong.server_time_ms = Time.get_ticks_msec()
+            send_to_peer(peer_id, MessageType.PONG, pong.encode())
         MessageType.DISCONNECT:
             emit_signal("client_disconnected", peer_id)
         _:

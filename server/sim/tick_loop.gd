@@ -128,6 +128,7 @@ func _step_tick(dt: float) -> void:
 
     var snap := Messages.Snapshot.new()
     snap.tick = _tick
+    snap.server_time_ms = Time.get_ticks_msec()
     for pid in _world.tanks:
         var s = _world.tanks[pid]
         if s.alive:

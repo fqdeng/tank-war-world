@@ -110,6 +110,10 @@ class TankSnapshot:
 
 class Snapshot:
     var tick: int = 0
+    # Server Time.get_ticks_msec() at the moment this snapshot was encoded.
+    # Client uses this as the interp-buffer time base so network jitter in
+    # packet arrival doesn't become interpolation step-size jitter.
+    var server_time_ms: int = 0
     var tanks: Array = []  # Array[TankSnapshot]
     var team_kills_0: int = 0
     var team_kills_1: int = 0
@@ -132,6 +136,7 @@ class Snapshot:
     func encode() -> PackedByteArray:
         var buf := PackedByteArray()
         Codec.write_u32(buf, tick)
+        Codec.write_u32(buf, server_time_ms)
         Codec.write_u16(buf, tanks.size())
         for t in tanks:
             Codec.write_u16(buf, t.player_id)
@@ -153,6 +158,7 @@ class Snapshot:
         var m := Snapshot.new()
         var c := [0]
         m.tick = Codec.read_u32(buf, c)
+        m.server_time_ms = Codec.read_u32(buf, c)
         var n := Codec.read_u16(buf, c)
         for i in n:
             var t := TankSnapshot.new()
@@ -305,4 +311,40 @@ class ObstacleDestroyed:
         var m := ObstacleDestroyed.new()
         var c := [0]
         m.obstacle_id = Codec.read_u32(buf, c)
+        return m
+
+# ---- Ping (client → server, ~1 Hz) ----
+# Client stamps its local Time.get_ticks_msec() so server can echo it back.
+class Ping:
+    var client_time_ms: int = 0
+
+    func encode() -> PackedByteArray:
+        var buf := PackedByteArray()
+        Codec.write_u32(buf, client_time_ms)
+        return buf
+
+    static func decode(buf: PackedByteArray) -> Ping:
+        var m := Ping.new()
+        var c := [0]
+        m.client_time_ms = Codec.read_u32(buf, c)
+        return m
+
+# ---- Pong (server → client) ----
+# Echoes client's timestamp so client can compute RTT, plus server's own clock
+# so client can refine the server-time estimate used by the interp buffer.
+class Pong:
+    var client_time_ms: int = 0
+    var server_time_ms: int = 0
+
+    func encode() -> PackedByteArray:
+        var buf := PackedByteArray()
+        Codec.write_u32(buf, client_time_ms)
+        Codec.write_u32(buf, server_time_ms)
+        return buf
+
+    static func decode(buf: PackedByteArray) -> Pong:
+        var m := Pong.new()
+        var c := [0]
+        m.client_time_ms = Codec.read_u32(buf, c)
+        m.server_time_ms = Codec.read_u32(buf, c)
         return m

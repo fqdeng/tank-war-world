@@ -44,6 +44,25 @@ var _fire_stream: AudioStreamWAV
 var _hit_stream: AudioStreamWAV
 var _tank_hit_stream: AudioStreamWAV
 
+# --- Network timing ---------------------------------------------------------
+# Throttle INPUT sending to the server's tick rate. Local prediction keeps
+# running every physics frame; this only gates the uplink + encode/send cost.
+var _input_send_accum: float = 0.0
+# Client-side estimate of the server clock: server_ms ≈ client_ms + offset.
+# Refined by both SNAPSHOT.server_time_ms (coarse) and PONG (precise, since we
+# know the outbound leg is ~rtt/2).
+var _srv_clock_offset_ms: int = 0
+var _srv_clock_initialized: bool = false
+# PING/PONG + RTT smoothing (TCP RFC6298-style).
+var _last_ping_ms: int = 0
+var _rtt_ms: float = 0.0
+var _rtt_var_ms: float = 0.0
+const _PING_INTERVAL_MS: int = 1000
+# HUD net-stats refresh cadence (seconds). 4 Hz is responsive but doesn't
+# thrash the label on every render frame.
+var _hud_stats_accum: float = 0.0
+const _HUD_STATS_INTERVAL_S: float = 0.25
+
 func _ready() -> void:
     if OS.has_feature("web"):
         server_url = _derive_web_server_url()
@@ -131,6 +150,8 @@ func _on_message(msg_type: int, payload: PackedByteArray) -> void:
             _obstacle_builder.destroy_obstacle(od.obstacle_id)
             if _prediction:
                 _prediction.mark_obstacle_destroyed(od.obstacle_id)
+        MessageType.PONG:
+            _handle_pong(Messages.Pong.decode(payload))
 
 func _handle_connect_ack(msg) -> void:
     _my_player_id = msg.player_id
@@ -159,7 +180,10 @@ func _handle_connect_ack(msg) -> void:
 func _handle_snapshot(msg) -> void:
     if _hud != null:
         _hud.set_team_kills(msg.team_kills_0, msg.team_kills_1)
-    var now_ms: int = Time.get_ticks_msec()
+    # Refine the server-clock estimate from the snapshot's send timestamp.
+    # PONG gives a more accurate correction (below); snapshots are the fallback
+    # so the clock is usable immediately on first SNAPSHOT, before the first PONG.
+    _update_server_clock_offset(int(msg.server_time_ms))
     var seen: Dictionary = {}
     for t in msg.tanks:
         seen[t.player_id] = true
@@ -177,7 +201,10 @@ func _handle_snapshot(msg) -> void:
             _ensure_view(t.player_id, t.team, false)
             if not _remote_interp.has(t.player_id):
                 _remote_interp[t.player_id] = Interpolation.new()
-            _remote_interp[t.player_id].push_snapshot(now_ms, t.pos, t.yaw, t.turret_yaw, t.gun_pitch, t.hp)
+            # Push using the server's send time, not our receive time. Network
+            # jitter moves packet arrivals around, but server spacing is a strict
+            # 50 ms — keying the buffer on server time makes lerp steps constant.
+            _remote_interp[t.player_id].push_snapshot(int(msg.server_time_ms), t.pos, t.yaw, t.turret_yaw, t.gun_pitch, t.hp)
     for pid in _tanks.keys():
         if not seen.has(pid):
             _tanks[pid].queue_free()
@@ -392,7 +419,20 @@ func _physics_process(delta: float) -> void:
         var ps = _prediction.state()
         inp.pos = ps.pos
         inp.yaw = ps.yaw
-    _ws.send(MessageType.INPUT, inp.encode())
+    # Throttle INPUT to 20 Hz (= server tick). Web physics runs at 60 Hz and
+    # native at 120 Hz, so we were sending 3–6× more INPUT packets than the
+    # server actually consumes — pure uplink + encode + GC waste on Web.
+    # Prediction above still runs every physics frame so local motion stays
+    # smooth. fire_pressed on INPUT is unused for humans (FIRE is the path).
+    _input_send_accum += delta
+    if _input_send_accum >= Constants.TICK_INTERVAL:
+        _input_send_accum -= Constants.TICK_INTERVAL
+        # On a big frame hitch (e.g. GC pause), don't try to replay a backlog of
+        # INPUTs — drop to current.
+        if _input_send_accum > Constants.TICK_INTERVAL:
+            _input_send_accum = 0.0
+        _ws.send(MessageType.INPUT, inp.encode())
+    _maybe_send_ping()
     if _input.consume_fire():
         # Reload is enforced on the client now that firing is client-authoritative;
         # the server no longer stamps reload_remaining on FIRE for humans. Drop the
@@ -431,6 +471,12 @@ func _process(_delta: float) -> void:
         var remaining_ms: int = _respawn_deadline_ms - Time.get_ticks_msec()
         var remaining_s: float = max(0.0, float(remaining_ms) / 1000.0)
         _hud.set_respawn_countdown(remaining_s)
+    # Update bottom-right net-stats overlay (ping/up/down) a few times per second.
+    if _hud != null and _ws != null:
+        _hud_stats_accum += _delta
+        if _hud_stats_accum >= _HUD_STATS_INTERVAL_S:
+            _hud_stats_accum = 0.0
+            _hud.set_net_stats(_rtt_ms, _ws.bytes_sent_per_sec(), _ws.bytes_recv_per_sec())
     # Apply predicted state at render rate (no physics-interpolation stack).
     if _prediction != null and _tanks.has(_my_player_id):
         var s = _prediction.state()
@@ -446,10 +492,12 @@ func _process(_delta: float) -> void:
             var origin: Vector3 = _scope_cam.global_position
             var fwd: Vector3 = -_scope_cam.global_transform.basis.z
             reticle.set_distance(_raycast_terrain_distance(origin, fwd))
-    # Remote tanks: sample interp buffer at now - 100ms and update view
-    var now_ms: int = Time.get_ticks_msec()
+    # Remote tanks: sample interp buffer using the estimated server clock.
+    # Matching the buffer's time base (server send-time) means lerp steps are
+    # driven by the server's strict 20 Hz spacing, not by arrival jitter.
+    var now_server_ms: int = _estimated_server_now_ms()
     for pid in _remote_interp:
-        var r = _remote_interp[pid].sample(now_ms)
+        var r = _remote_interp[pid].sample(now_server_ms)
         if r == null:
             continue
         var view = _tanks.get(pid)
@@ -468,3 +516,56 @@ func _process(_delta: float) -> void:
         var origin: Vector3 = h.get_meta("origin")
         var vel: Vector3 = h.get_meta("velocity")
         h.position = Ballistics.position_at(origin, vel, elapsed)
+
+# --- Server-clock estimate & PING/PONG -------------------------------------
+
+func _estimated_server_now_ms() -> int:
+    return Time.get_ticks_msec() + _srv_clock_offset_ms
+
+func _update_server_clock_offset(server_now_ms: int) -> void:
+    var client_ms: int = Time.get_ticks_msec()
+    var instant_offset: int = server_now_ms - client_ms
+    if not _srv_clock_initialized:
+        _srv_clock_offset_ms = instant_offset
+        _srv_clock_initialized = true
+        return
+    # 7:1 EMA — a single-packet jitter spike of ±50 ms only shifts the estimate
+    # by ~6 ms, so interp target_t stays stable across that spike.
+    _srv_clock_offset_ms = (_srv_clock_offset_ms * 7 + instant_offset) / 8
+
+func _maybe_send_ping() -> void:
+    if _ws == null or not _ws.is_open():
+        return
+    var now: int = Time.get_ticks_msec()
+    if now - _last_ping_ms < _PING_INTERVAL_MS:
+        return
+    _last_ping_ms = now
+    var p := Messages.Ping.new()
+    p.client_time_ms = now
+    _ws.send(MessageType.PING, p.encode())
+
+func _handle_pong(msg) -> void:
+    var now: int = Time.get_ticks_msec()
+    var rtt: float = float(now - msg.client_time_ms)
+    if rtt < 0.0 or rtt > 10000.0:
+        # Clock skew or truly broken network — don't poison the estimator.
+        return
+    if _rtt_ms == 0.0:
+        _rtt_ms = rtt
+        _rtt_var_ms = rtt * 0.5
+    else:
+        # RFC6298-style smoothing: RTTVAR first (uses old RTT), then RTT.
+        _rtt_var_ms = 0.75 * _rtt_var_ms + 0.25 * absf(rtt - _rtt_ms)
+        _rtt_ms = 0.875 * _rtt_ms + 0.125 * rtt
+    # Server stamped server_time_ms roughly rtt/2 after we sent client_time_ms.
+    # So offset = server_time_ms - (client_time_ms + rtt/2). More accurate than
+    # the SNAPSHOT-based estimate (which can't separate one-way delay from jitter).
+    var inferred_offset: int = int(msg.server_time_ms) - (int(msg.client_time_ms) + int(rtt * 0.5))
+    _srv_clock_offset_ms = (_srv_clock_offset_ms * 7 + inferred_offset) / 8
+    _srv_clock_initialized = true
+    # Adapt interp delay. Base 2.5 × TICK_INTERVAL = 125 ms survives a skipped
+    # snapshot; jitter_var × 2.5 covers ~99% of packet-arrival variance.
+    # interpolation.gd clamps to [60, 300] internally.
+    var delay: int = int(2.5 * Constants.TICK_INTERVAL * 1000.0 + 2.5 * _rtt_var_ms)
+    for pid in _remote_interp:
+        _remote_interp[pid].set_delay_ms(delay)

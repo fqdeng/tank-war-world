@@ -5,7 +5,9 @@ class_name Codec
 # Readers take a cursor (1-elem int array so we can mutate by reference).
 
 static func write_u8(buf: PackedByteArray, v: int) -> void:
-    buf.append(v & 0xFF)
+    var off := buf.size()
+    buf.resize(off + 1)
+    buf.encode_u8(off, v & 0xFF)
 
 static func read_u8(buf: PackedByteArray, cursor: Array) -> int:
     var v := buf[cursor[0]]
@@ -13,8 +15,9 @@ static func read_u8(buf: PackedByteArray, cursor: Array) -> int:
     return v
 
 static func write_u16(buf: PackedByteArray, v: int) -> void:
-    buf.append(v & 0xFF)
-    buf.append((v >> 8) & 0xFF)
+    var off := buf.size()
+    buf.resize(off + 2)
+    buf.encode_u16(off, v & 0xFFFF)
 
 static func read_u16(buf: PackedByteArray, cursor: Array) -> int:
     var lo := buf[cursor[0]]
@@ -23,10 +26,9 @@ static func read_u16(buf: PackedByteArray, cursor: Array) -> int:
     return lo | (hi << 8)
 
 static func write_u32(buf: PackedByteArray, v: int) -> void:
-    buf.append(v & 0xFF)
-    buf.append((v >> 8) & 0xFF)
-    buf.append((v >> 16) & 0xFF)
-    buf.append((v >> 24) & 0xFF)
+    var off := buf.size()
+    buf.resize(off + 4)
+    buf.encode_u32(off, v)
 
 static func read_u32(buf: PackedByteArray, cursor: Array) -> int:
     var b0 := buf[cursor[0]]
@@ -37,10 +39,9 @@ static func read_u32(buf: PackedByteArray, cursor: Array) -> int:
     return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
 
 static func write_f32(buf: PackedByteArray, v: float) -> void:
-    var tmp := PackedByteArray()
-    tmp.resize(4)
-    tmp.encode_float(0, v)
-    buf.append_array(tmp)
+    var off := buf.size()
+    buf.resize(off + 4)
+    buf.encode_float(off, v)
 
 static func read_f32(buf: PackedByteArray, cursor: Array) -> float:
     var v := buf.decode_float(cursor[0])

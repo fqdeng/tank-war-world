@@ -1,10 +1,20 @@
 # client/tank/interpolation.gd
 extends RefCounted
 
-# Per-tank snapshot ring; each entry: {t_ms, pos, yaw, turret_yaw, gun_pitch, hp}
+# Per-tank snapshot ring; each entry: {t_ms, pos, yaw, turret_yaw, gun_pitch, hp}.
+# t_ms is expected to be the server's Time.get_ticks_msec() at send time (not the
+# client's receive time), so jitter in packet arrival doesn't translate into
+# interpolation step-size jitter. Sample() must be called with the client's
+# current estimate of the server clock for the same reason.
 var _buffer: Array = []
 var _interp_delay_ms: int = 100
 var _max_buffer: int = 20
+
+func set_delay_ms(v: int) -> void:
+    _interp_delay_ms = clamp(v, 60, 300)
+
+func get_delay_ms() -> int:
+    return _interp_delay_ms
 
 func push_snapshot(t_ms: int, pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int) -> void:
     _buffer.append({
