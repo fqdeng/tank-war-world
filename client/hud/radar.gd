@@ -58,6 +58,9 @@ func _draw() -> void:
     # Self marker (bright triangle pointing up = player's forward)
     _draw_self_triangle(Vector2(cx, cy))
 
+    # Compass "N" — points to world north (-Z direction), rotates as player turns.
+    _draw_north_marker(Vector2(cx, cy), radius)
+
     var now: int = Time.get_ticks_msec()
     for pid in _blips:
         var blip: Dictionary = _blips[pid]
@@ -89,6 +92,23 @@ func _draw() -> void:
         remaining = clamp(remaining, 0.0, 1.0)
         col.a = 0.35 + 0.65 * remaining
         draw_circle(Vector2(px, py), 4.0, col)
+
+func _draw_north_marker(center: Vector2, radius: float) -> void:
+    # World north := -Z direction. Transform into radar-local space (forward = up).
+    var nx: float = -sin(_self_yaw)
+    var nz: float = -cos(_self_yaw)
+    var edge: float = radius - 10.0
+    var tick_inner: float = radius - 4.0
+    var p_inner := Vector2(center.x + nx * tick_inner, center.y + nz * tick_inner)
+    var p_outer := Vector2(center.x + nx * radius, center.y + nz * radius)
+    var col := Color(1.0, 0.95, 0.4, 0.95)
+    # Notch on the ring pointing to world north
+    draw_line(p_inner, p_outer, col, 2.0)
+    # "N" label just inside the ring
+    var label_pos := Vector2(center.x + nx * edge - 4.0, center.y + nz * edge + 5.0)
+    var font: Font = ThemeDB.fallback_font
+    var font_size: int = 14
+    draw_string(font, label_pos, "N", HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, col)
 
 func _draw_self_triangle(center: Vector2) -> void:
     var up := Vector2(0, -8)

@@ -50,8 +50,8 @@ func reconcile(server_pos: Vector3, server_yaw: float, server_turret_yaw: float,
             TankMovement.step(_state, entry["input"], entry["dt"])
             if _heightmap.size() > 0:
                 _state.pos.y = TerrainGenerator.sample_height(_heightmap, _terrain_size, _state.pos.x, _state.pos.z)
-    _state.turret_yaw = server_turret_yaw
-    _state.gun_pitch = server_gun_pitch
+    # Turret/gun_pitch are client-authoritative (driven by mouse input) — do NOT
+    # overwrite from server, or we get per-snapshot jitter on the barrel/turret.
     _state.hp = server_hp
     if server_ammo >= 0:
         _state.ammo = server_ammo

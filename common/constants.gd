@@ -7,8 +7,8 @@ const TICK_RATE_HZ: int = 20
 const TICK_INTERVAL: float = 1.0 / TICK_RATE_HZ  # 0.05s
 
 # World
-const WORLD_SIZE_M: int = 1024
-const TERRAIN_VERTS_PER_M: int = 1  # 1024x1024 verts
+const WORLD_SIZE_M: int = 512
+const TERRAIN_VERTS_PER_M: int = 1  # 512x512 verts
 const HEIGHT_MAX_M: float = 12.0         # natural terrain height cap
 const NOISE_OCTAVES: int = 3
 const NOISE_FREQUENCY: float = 1.0 / 384.0
@@ -19,9 +19,9 @@ const BORDER_MOUNTAIN_MAX_H: float = 35.0    # peak height at the edge
 const PLAYABLE_MARGIN_M: float = 55.0        # tank pos is clamped inside [margin, size-margin]
 
 # Obstacles (counts in Plan 01 are reduced for performance headroom)
-const SMALL_ROCK_COUNT: int = 400
-const LARGE_ROCK_COUNT: int = 80
-const TREE_COUNT: int = 600
+const SMALL_ROCK_COUNT: int = 200
+const LARGE_ROCK_COUNT: int = 40
+const TREE_COUNT: int = 300
 
 # Tank (single type for Plan 01)
 const TANK_MAX_HP: int = 900
@@ -40,6 +40,7 @@ const HITSCAN_MAX_RANGE_M: float = 1500.0
 
 # Respawn
 const RESPAWN_COOLDOWN_S: float = 10.0
+const SPAWN_INVULN_S: float = 3.0  # post-spawn invulnerability so fresh tanks aren't insta-killed
 
 # --- Ballistics (Plan 02) ---
 const SHELL_INITIAL_SPEED: float = 200.0  # m/s — slow for pronounced ballistic drop

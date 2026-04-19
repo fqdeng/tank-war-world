@@ -23,13 +23,17 @@ func set_heightmap(hm: PackedFloat32Array, size: int) -> void:
 func _process(delta: float) -> void:
     if _target == null:
         return
-    var yaw: float = _target.rotation.y
+    # Use the visually-interpolated transform so the camera tracks the smoothed
+    # render pose (not the raw physics-tick pose that jumps at 60Hz).
+    var tgt_xf: Transform3D = _target.get_global_transform_interpolated()
+    var tgt_pos: Vector3 = tgt_xf.origin
+    var yaw: float = tgt_xf.basis.get_euler().y
     var behind := Vector3(sin(yaw), 0, cos(yaw)) * distance
-    var desired: Vector3 = _target.global_position + behind + Vector3(0, height, 0)
+    var desired: Vector3 = tgt_pos + behind + Vector3(0, height, 0)
     # Lift above terrain if heightmap is available
     if _heightmap.size() > 0 and _terrain_size > 0:
         var th: float = TerrainGenerator.sample_height(_heightmap, _terrain_size, desired.x, desired.z)
         if desired.y < th + min_clearance_above_terrain:
             desired.y = th + min_clearance_above_terrain
     global_position = global_position.lerp(desired, clamp(smooth * delta, 0, 1))
-    look_at(_target.global_position + Vector3(0, 1.5, 0), Vector3.UP)
+    look_at(tgt_pos + Vector3(0, 1.5, 0), Vector3.UP)

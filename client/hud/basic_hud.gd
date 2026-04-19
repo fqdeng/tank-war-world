@@ -6,7 +6,27 @@ extends CanvasLayer
 @onready var _id: Label = $Container/IdLabel
 @onready var _ammo: Label = $Container/AmmoLabel
 @onready var _reload: ProgressBar = $Container/ReloadBar
-@onready var radar: Control = $Container/Radar
+@onready var radar: Control = $Radar
+
+func _ready() -> void:
+    get_viewport().size_changed.connect(_resize_radar)
+    _resize_radar.call_deferred()
+
+func _resize_radar() -> void:
+    if radar == null:
+        return
+    var vp: Vector2 = get_viewport().get_visible_rect().size
+    var s: float = clamp(vp.y * 0.28, 240.0, 440.0)
+    var margin: float = 16.0
+    radar.set_anchors_preset(Control.PRESET_TOP_LEFT)
+    radar.position = Vector2(margin, vp.y - s - margin)
+    radar.size = Vector2(s, s)
+    # Push HP/Player labels right of the radar so they aren't covered.
+    var label_left: float = s + 20.0
+    if _hp:
+        _hp.offset_left = label_left
+    if _id:
+        _id.offset_left = label_left
 
 func set_status(s: String) -> void:
     if _status:

@@ -43,7 +43,7 @@ func step(state: TankState, world, dt: float) -> Dictionary:
         var horiz_dist: float = sqrt(to_t.x * to_t.x + to_t.z * to_t.z)
         var world_turret_yaw: float = atan2(-to_t.x, -to_t.z)
         turret_yaw = wrapf(world_turret_yaw - state.yaw, -PI, PI)
-        gun_pitch = clamp(_estimate_pitch(horiz_dist, to_t.y), deg_to_rad(-5.0), deg_to_rad(18.0))
+        gun_pitch = clamp(_estimate_pitch(horiz_dist, to_t.y), deg_to_rad(-8.0), deg_to_rad(12.0))
         var aim_err: float = abs(wrapf(world_turret_yaw - (state.yaw + turret_yaw), -PI, PI))
         if aim_err < 0.06 and _fire_cooldown <= 0.0:
             fire_pressed = true
@@ -114,7 +114,7 @@ func _estimate_pitch(horiz_dist: float, dy: float) -> float:
     var g: float = Constants.GRAVITY
     var s: float = g * horiz_dist / (v * v)
     if s >= 1.0:
-        return deg_to_rad(18.0)
+        return deg_to_rad(12.0)
     var pitch: float = 0.5 * asin(s)
     if abs(dy) > 1.0:
         pitch += atan2(dy, horiz_dist) * 0.5

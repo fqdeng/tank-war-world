@@ -91,6 +91,7 @@ func spawn_tank(player_id: int, team: int) -> TankState:
     t.initialize_parts(Constants.TANK_MAX_HP)
     t.ammo = Constants.TANK_AMMO_CAPACITY
     t.alive = true
+    t.spawn_invuln_remaining = Constants.SPAWN_INVULN_S
     tanks[player_id] = t
     return t
 

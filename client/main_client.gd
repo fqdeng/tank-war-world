@@ -312,15 +312,13 @@ func _spawn_impact_puff(pos: Vector3) -> void:
     get_tree().create_timer(0.3).timeout.connect(func(): mesh.queue_free())
 
 func _process(_delta: float) -> void:
-    # Local tank: apply predicted state directly (no smoothing — user feels instant input)
+    # Apply predicted state at render rate (no physics-interpolation stack).
     if _prediction != null and _tanks.has(_my_player_id):
         var s = _prediction.state()
         _tanks[_my_player_id].apply_predicted(s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp)
-        # Base HUD always shows ammo + reload + radar self pose
         _hud.set_ammo(s.ammo)
         _hud.set_reload(s.reload_remaining, Constants.TANK_RELOAD_S)
         _hud.radar.set_self_pose(s.pos, s.yaw)
-        # Scope overlay readings
         if _in_scope and _scope_cam != null:
             var reticle = _scope_overlay.get_node("Reticle")
             reticle.set_ammo(s.ammo)

@@ -65,7 +65,7 @@ func _step_tick(dt: float) -> void:
         if _latest_input[pid].get("fire_pressed", false) and st.can_fire():
             # Apply aim from latest input into state (so shell direction uses AI's aim)
             st.turret_yaw = float(_latest_input[pid].get("turret_yaw", st.turret_yaw))
-            st.gun_pitch = float(_latest_input[pid].get("gun_pitch", st.gun_pitch))
+            st.gun_pitch = clamp(float(_latest_input[pid].get("gun_pitch", st.gun_pitch)), deg_to_rad(-8.0), deg_to_rad(12.0))
             _spawn_shell(pid, st, st.turret_yaw, st.gun_pitch)
 
     for pid in _world.tanks:
@@ -94,9 +94,11 @@ func _step_tick(dt: float) -> void:
         var terrain_h: float = TerrainGenerator.sample_height(_world.heightmap, _world.terrain_size, state.pos.x, state.pos.z)
         state.pos.y = terrain_h
         state.turret_yaw = float(inp.get("turret_yaw", state.turret_yaw))
-        state.gun_pitch = float(inp.get("gun_pitch", state.gun_pitch))
+        state.gun_pitch = clamp(float(inp.get("gun_pitch", state.gun_pitch)), deg_to_rad(-8.0), deg_to_rad(12.0))
         if state.reload_remaining > 0.0:
             state.reload_remaining = max(0.0, state.reload_remaining - dt)
+        if state.spawn_invuln_remaining > 0.0:
+            state.spawn_invuln_remaining = max(0.0, state.spawn_invuln_remaining - dt)
         # Ammo regeneration up to capacity
         if state.ammo < Constants.TANK_AMMO_CAPACITY:
             state.ammo_regen_accum += dt
@@ -178,16 +180,21 @@ func _on_fire_received(peer_id: int, _fire_msg) -> void:
     _spawn_shell(pid, state, aim_turret_yaw, aim_gun_pitch)
 
 # Shared shell spawn (used by real players and AI).
+# Origin is computed from the same tank→turret→barrel rig the client renders,
+# so the shell emerges exactly on the scope crosshair's forward ray.
 func _spawn_shell(shooter_id: int, state, aim_turret_yaw: float, aim_gun_pitch: float) -> void:
     if not state.can_fire():
         return
     state.ammo -= 1
     state.reload_remaining = Constants.TANK_RELOAD_S
-    var muzzle_offset := 2.5
-    var origin: Vector3 = state.pos + Vector3(0, 1.6, 0)
-    var world_turret_yaw: float = state.yaw + aim_turret_yaw
-    var velocity: Vector3 = Ballistics.initial_velocity(world_turret_yaw, aim_gun_pitch, Constants.SHELL_INITIAL_SPEED)
-    origin += velocity.normalized() * muzzle_offset
+    var tank_xf := Transform3D(Basis().rotated(Vector3.UP, state.yaw), state.pos)
+    var turret_local := Transform3D(Basis().rotated(Vector3.UP, aim_turret_yaw), Vector3(0, 1.4, 0))
+    var barrel_local := Transform3D(Basis().rotated(Vector3.RIGHT, aim_gun_pitch), Vector3(0, 0, -1.1))
+    var barrel_xf: Transform3D = tank_xf * turret_local * barrel_local
+    var scope_pos: Vector3 = barrel_xf * Vector3(0, 0.2, -1.0)
+    var forward: Vector3 = -barrel_xf.basis.z
+    var origin: Vector3 = scope_pos + forward * 0.6
+    var velocity: Vector3 = forward * Constants.SHELL_INITIAL_SPEED
     var shell = _shell_sim.spawn(shooter_id, origin, velocity)
     var msg := Messages.ShellSpawned.new()
     msg.shell_id = shell.id
@@ -269,6 +276,18 @@ func _on_shell_hit(shell, victim_id: int, hit_point: Vector3, part_id: int, obst
     if not _world.tanks.has(victim_id):
         return
     var victim = _world.tanks[victim_id]
+    if victim.spawn_invuln_remaining > 0.0:
+        # Damage is ignored during post-spawn grace; still broadcast a zero-damage
+        # hit so the shell visual gets cleaned up and the shooter sees the impact.
+        var hit_msg_i := Messages.Hit.new()
+        hit_msg_i.shell_id = shell.id
+        hit_msg_i.shooter_id = shell.shooter_id
+        hit_msg_i.victim_id = victim_id
+        hit_msg_i.damage = 0
+        hit_msg_i.part_id = part_id
+        hit_msg_i.hit_point = hit_point
+        _ws_server.broadcast(MessageType.HIT, hit_msg_i.encode())
+        return
     var result = PartDamage.apply(victim, part_id, Constants.TANK_FIRE_DAMAGE)
     var hit_msg := Messages.Hit.new()
     hit_msg.shell_id = shell.id
@@ -328,6 +347,7 @@ func _respawn_player(player_id: int) -> void:
     state.reload_remaining = 0.0
     state.speed = 0.0
     state.alive = true
+    state.spawn_invuln_remaining = Constants.SPAWN_INVULN_S
     var peer_id: int = _ws_server.peer_id_for_player(player_id)
     if peer_id != 0:
         var msg := Messages.Respawn.new()
