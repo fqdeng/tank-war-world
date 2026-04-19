@@ -1,5 +1,7 @@
 # Tank War World
 
+![Tank War World](image/tank.png)
+
 基于 Godot 4.6 的多人坦克对战。服务器是权威模拟，以无头 Godot 进程运行；客户端可以是原生 Godot 应用，也可以是 HTML5 网页。客户端和服务器之间用自定义二进制协议走 WebSocket，同一个服务器可以同时接入原生客户端和浏览器客户端。
 
 [English → README.md](README.md)

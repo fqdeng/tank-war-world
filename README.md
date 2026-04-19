@@ -1,5 +1,7 @@
 # Tank War World
 
+![Tank War World](image/tank.png)
+
 Multiplayer tank shooter built with Godot 4.6. The server is an authoritative simulation running as a headless Godot process; the client ships either as a native Godot app or as an HTML5 web build. Client ↔ server is a custom binary protocol over WebSocket, so the same server accepts native and browser clients simultaneously.
 
 [中文说明 → README-cn.md](README-cn.md)
