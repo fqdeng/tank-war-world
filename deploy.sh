@@ -1,3 +1,3 @@
 /Applications/Godot.app/Contents/MacOS/Godot --headless \
 	--export-release "Web" build/web/index.html &&
-	python3 -m http.server --directory build/web 8000
+	python3 tools/serve_web.py 8000
