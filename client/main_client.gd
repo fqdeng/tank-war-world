@@ -45,6 +45,8 @@ var _hit_stream: AudioStreamWAV
 var _tank_hit_stream: AudioStreamWAV
 
 func _ready() -> void:
+    if OS.has_feature("web"):
+        server_url = _derive_web_server_url()
     print("[Client] Connecting to %s" % server_url)
 
     # Environment
@@ -94,6 +96,15 @@ func _ready() -> void:
     _fire_stream = SoundBank.make_fire_shot()
     _hit_stream = SoundBank.make_hit_clang()
     _tank_hit_stream = SoundBank.make_tank_hit_thud()
+
+# Under HTML5, derive the WebSocket endpoint from the page's own URL so the same
+# bundle works on any host without a rebuild. `wss` is required when the page is
+# served over https (mixed-content rule).
+func _derive_web_server_url() -> String:
+    var host: String = str(JavaScriptBridge.eval("location.hostname"))
+    var proto: String = str(JavaScriptBridge.eval("location.protocol"))
+    var scheme: String = "wss" if proto == "https:" else "ws"
+    return "%s://%s:%d" % [scheme, host, Constants.SERVER_PORT]
 
 func _on_connected() -> void:
     print("[Client] WebSocket connected. Sending CONNECT.")
