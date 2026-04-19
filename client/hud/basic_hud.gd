@@ -8,6 +8,12 @@ extends CanvasLayer
 @onready var _reload: ProgressBar = $ReloadBar
 @onready var radar: Control = $Radar
 @onready var _scoreboard: RichTextLabel = $ScoreboardLabel
+@onready var _combat_log: VBoxContainer = $CombatLog
+@onready var _hit_label: Label = $HitLabel
+@onready var _kill_label: Label = $KillLabel
+@onready var _respawn_label: Label = $RespawnLabel
+var _hit_tween: Tween
+var _kill_tween: Tween
 
 func _ready() -> void:
     get_viewport().size_changed.connect(_resize_radar)
@@ -36,6 +42,17 @@ func set_status(s: String) -> void:
     if _status:
         _status.text = "STATUS: " + s
 
+# Big center-screen overlay shown during respawn. Pass 0 (or negative) to hide.
+func set_respawn_countdown(seconds: float) -> void:
+    if _respawn_label == null:
+        return
+    if seconds > 0.0:
+        _respawn_label.text = "阵亡 — 重生 %.1fs" % seconds
+        _respawn_label.visible = true
+    else:
+        _respawn_label.visible = false
+        _respawn_label.text = ""
+
 func set_hp(v: int) -> void:
     if _hp:
         _hp.text = "HP: %d" % v
@@ -44,13 +61,68 @@ func set_player_id(pid: int) -> void:
     if _id:
         _id.text = "Player: %d" % pid
 
-func set_ammo(n: int) -> void:
+func set_ammo(_n: int) -> void:
     if _ammo:
-        _ammo.text = "AP x %d" % n
+        _ammo.text = "AP x ∞"
+
+const MATCH_KILL_TARGET: int = 100
 
 func set_team_kills(blue: int, red: int) -> void:
     if _scoreboard:
-        _scoreboard.text = "[center][color=#4db2ff]BLUE %d[/color]    —    [color=#ff5050]RED %d[/color][/center]" % [blue, red]
+        _scoreboard.text = "[center][color=#4db2ff]BLUE %d[/color]  /  %d  /  [color=#ff5050]RED %d[/color][/center]" % [blue, MATCH_KILL_TARGET, red]
+
+const COMBAT_LOG_MAX_LINES: int = 50  # hard cap; overflow fades out FIFO
+const COMBAT_LOG_FADE_S: float = 1.0
+
+func add_hit_line(attacker: String, attacker_team: int, victim: String, victim_team: int, damage: int) -> void:
+    if _combat_log == null:
+        return
+    var atk_color: String = "#4db2ff" if attacker_team == 0 else "#ff5050"
+    var vic_color: String = "#4db2ff" if victim_team == 0 else "#ff5050"
+    var lbl := RichTextLabel.new()
+    lbl.bbcode_enabled = true
+    lbl.fit_content = true
+    lbl.scroll_active = false
+    lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    lbl.custom_minimum_size = Vector2(0, 22)
+    lbl.text = "[color=%s]%s[/color] 击中了 [color=%s]%s[/color]  [color=#ffd070]-%d HP[/color]" % [atk_color, attacker, vic_color, victim, damage]
+    _combat_log.add_child(lbl)
+    _combat_log.move_child(lbl, 0)  # newest on top
+    # FIFO overflow: only start fading out the oldest entries once we exceed the cap.
+    while _combat_log.get_child_count() > COMBAT_LOG_MAX_LINES:
+        var tail: Node = _combat_log.get_child(_combat_log.get_child_count() - 1)
+        if tail.has_meta("fading"):
+            # Already scheduled for removal but still in the tree — hard-drop so we
+            # don't double-tween. Safer to just free now.
+            _combat_log.remove_child(tail)
+            tail.queue_free()
+            continue
+        tail.set_meta("fading", true)
+        var tw := tail.create_tween()
+        tw.tween_property(tail, "modulate:a", 0.0, COMBAT_LOG_FADE_S)
+        tw.tween_callback(Callable(tail, "queue_free"))
+
+func show_hit(damage: int) -> void:
+    if _hit_label == null:
+        return
+    if _hit_tween and _hit_tween.is_valid():
+        _hit_tween.kill()
+    _hit_label.text = "HIT  -%d HP" % damage
+    _hit_label.modulate.a = 1.0
+    _hit_tween = create_tween()
+    _hit_tween.tween_interval(0.6)
+    _hit_tween.tween_property(_hit_label, "modulate:a", 0.0, 0.4)
+
+func show_kill(victim_id: int) -> void:
+    if _kill_label == null:
+        return
+    if _kill_tween and _kill_tween.is_valid():
+        _kill_tween.kill()
+    _kill_label.text = "KILL  P%d" % victim_id
+    _kill_label.modulate.a = 1.0
+    _kill_tween = create_tween()
+    _kill_tween.tween_interval(1.2)
+    _kill_tween.tween_property(_kill_label, "modulate:a", 0.0, 0.6)
 
 # remaining_s: seconds left on reload; total_s: reload duration. 0 remaining = full bar.
 func set_reload(remaining_s: float, total_s: float) -> void:

@@ -24,7 +24,7 @@ const LARGE_ROCK_COUNT: int = 40
 const TREE_COUNT: int = 300
 
 # Tank (single type for Plan 01)
-const TANK_MAX_HP: int = 900
+const TANK_MAX_HP: int = 1000
 const TANK_MAX_SPEED_MS: float = 15.0        # 54 km/h
 const TANK_ACCEL_MS2: float = 2.4            # ~6.3s to reach new max — still gradual
 const TANK_BRAKE_DECEL_MS2: float = 9.0      # applied when input direction opposes current speed (S while moving fwd = brake)

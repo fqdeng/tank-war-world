@@ -35,9 +35,14 @@ var _remote_interp: Dictionary = {}  # player_id → Interpolation
 var _scope_cam
 var _scope_overlay
 var _in_scope: bool = false
+# Wall-clock deadline (ms) for local respawn; 0 when alive. Used for the
+# on-screen countdown — server doesn't echo a duration, but RESPAWN_COOLDOWN_S
+# is the contract so we derive it locally at death.
+var _respawn_deadline_ms: int = 0
 # Shared AudioStreamWAVs so we don't regenerate per-shot.
 var _fire_stream: AudioStreamWAV
 var _hit_stream: AudioStreamWAV
+var _tank_hit_stream: AudioStreamWAV
 
 func _ready() -> void:
     print("[Client] Connecting to %s" % server_url)
@@ -88,6 +93,7 @@ func _ready() -> void:
 
     _fire_stream = SoundBank.make_fire_shot()
     _hit_stream = SoundBank.make_hit_clang()
+    _tank_hit_stream = SoundBank.make_tank_hit_thud()
 
 func _on_connected() -> void:
     print("[Client] WebSocket connected. Sending CONNECT.")
@@ -274,13 +280,42 @@ func _handle_shell_spawned(msg) -> void:
     _play_oneshot_3d(_fire_stream, msg.origin, 4.0, 280.0)
 
 func _handle_hit(msg) -> void:
-    if msg.victim_id != 0 and _tanks.has(msg.victim_id):
+    var tank_hit: bool = msg.victim_id != 0 and _tanks.has(msg.victim_id)
+    if tank_hit:
         _tanks[msg.victim_id].flash_hit()
+        # Apply authoritative post-hit HP to the 3D bar so fatal hits visibly
+        # drain the bar before the tank is removed from subsequent snapshots.
+        _tanks[msg.victim_id].set_hp(int(msg.victim_hp_after))
+        if msg.victim_id == _my_player_id:
+            if _prediction != null:
+                _prediction.state().hp = int(msg.victim_hp_after)
+            _hud.set_hp(int(msg.victim_hp_after))
     if _shells.has(msg.shell_id):
         _shells[msg.shell_id].queue_free()
         _shells.erase(msg.shell_id)
     _spawn_impact_puff(msg.hit_point)
-    _play_oneshot_3d(_hit_stream, msg.hit_point, 2.0, 200.0)
+    # Distinct audio: heavy thud for shell-vs-tank, lighter clang for everything else.
+    # unit_size is generous so impacts are clearly audible even when the camera
+    # is ~10 m behind the tank (previous unit_size=2 made hits on own tank only
+    # ~20% volume, which read as "no sound" in practice).
+    var impact_stream: AudioStreamWAV = _tank_hit_stream if tank_hit else _hit_stream
+    _play_oneshot_3d(impact_stream, msg.hit_point, 6.0, 300.0)
+    # Crosshair feedback for the local shooter.
+    if msg.shooter_id == _my_player_id and tank_hit and msg.damage > 0:
+        if _scope_overlay and _scope_overlay.has_node("Reticle"):
+            _scope_overlay.get_node("Reticle").show_hit(int(msg.damage))
+        if _hud:
+            _hud.show_hit(int(msg.damage))
+    # Combat log: only tank-vs-tank with real damage (skip obstacle/terrain and
+    # zero-damage spawn-invuln hits).
+    if msg.victim_id != 0 and msg.damage > 0 and _hud != null:
+        var atk_team: int = -1
+        var vic_team: int = -1
+        if _tanks.has(msg.shooter_id):
+            atk_team = _tanks[msg.shooter_id].team
+        if _tanks.has(msg.victim_id):
+            vic_team = _tanks[msg.victim_id].team
+        _hud.add_hit_line("P%d" % msg.shooter_id, atk_team, "P%d" % msg.victim_id, vic_team, msg.damage)
 
 # Spawns a temporary AudioStreamPlayer3D at `pos`, plays once, frees itself.
 func _play_oneshot_3d(stream: AudioStreamWAV, pos: Vector3, unit_size: float, max_dist: float) -> void:
@@ -299,10 +334,22 @@ func _handle_death(msg) -> void:
     if _tanks.has(msg.victim_id):
         _tanks[msg.victim_id].set_dead(true)
     if msg.victim_id == _my_player_id:
-        _hud.set_status("DEAD — respawning")
+        _respawn_deadline_ms = Time.get_ticks_msec() + int(Constants.RESPAWN_COOLDOWN_S * 1000.0)
+        # Force exit scope so the center-screen respawn countdown is actually visible
+        # (scope view hides the full HUD).
+        if _in_scope:
+            _exit_scope()
+    if msg.killer_id == _my_player_id and msg.victim_id != _my_player_id:
+        if _scope_overlay and _scope_overlay.has_node("Reticle"):
+            _scope_overlay.get_node("Reticle").show_kill(int(msg.victim_id))
+        if _hud:
+            _hud.show_kill(int(msg.victim_id))
 
 func _handle_respawn(msg) -> void:
     if msg.player_id == _my_player_id:
+        _respawn_deadline_ms = 0
+        if _hud:
+            _hud.set_respawn_countdown(0.0)
         _hud.set_status("CONNECTED")
         if _prediction != null:
             _prediction.teleport(msg.pos)
@@ -352,6 +399,10 @@ func _spawn_impact_puff(pos: Vector3) -> void:
     get_tree().create_timer(0.3).timeout.connect(func(): mesh.queue_free())
 
 func _process(_delta: float) -> void:
+    if _respawn_deadline_ms > 0 and _hud != null:
+        var remaining_ms: int = _respawn_deadline_ms - Time.get_ticks_msec()
+        var remaining_s: float = max(0.0, float(remaining_ms) / 1000.0)
+        _hud.set_respawn_countdown(remaining_s)
     # Apply predicted state at render rate (no physics-interpolation stack).
     if _prediction != null and _tanks.has(_my_player_id):
         var s = _prediction.state()

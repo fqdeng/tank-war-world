@@ -218,6 +218,7 @@ class Hit:
     var damage: int = 0
     var part_id: int = 0
     var hit_point: Vector3 = Vector3.ZERO
+    var victim_hp_after: int = 0  # victim.hp after damage applied; so clients can update HP bar on fatal hits too
 
     func encode() -> PackedByteArray:
         var buf := PackedByteArray()
@@ -227,6 +228,7 @@ class Hit:
         Codec.write_u16(buf, damage)
         Codec.write_u8(buf, part_id)
         Codec.write_vec3(buf, hit_point)
+        Codec.write_u16(buf, victim_hp_after)
         return buf
 
     static func decode(buf: PackedByteArray) -> Hit:
@@ -238,6 +240,7 @@ class Hit:
         m.damage = Codec.read_u16(buf, c)
         m.part_id = Codec.read_u8(buf, c)
         m.hit_point = Codec.read_vec3(buf, c)
+        m.victim_hp_after = Codec.read_u16(buf, c)
         return m
 
 # ---- Death (server → all clients) ----

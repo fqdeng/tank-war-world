@@ -19,7 +19,18 @@ static func multiplier_for(part: int) -> float:
     return 1.0
 
 # Apply base_damage to state at part. Mutates state; returns Result.
-# Tank is destroyed when: total HP <= 0 OR hull HP <= 0 OR top HP <= 0.
+#
+# Two independent accumulators:
+#   - state.parts[part]: capped at 0, tracks functional state (turret dead →
+#     can't fire, track dead → reduced maneuver, engine dead → reduced speed).
+#     Subsequent hits past 0 do NOT re-damage a destroyed part.
+#   - state.hp: total HP, decreases by the full scaled damage every hit
+#     regardless of part cap, so pounding the same spot after it's broken
+#     still whittles the tank down. Tank dies when state.hp <= 0.
+#
+# Earlier revisions recomputed hp = sum(parts), which meant shots into a
+# destroyed HULL dealt 0 total damage — enemies became unkillable if you
+# fixated on one weak point. The decoupled model avoids that.
 static func apply(state: TankState, part: int, base_damage: int) -> Result:
     var r := Result.new()
     if not state.alive:
@@ -32,15 +43,8 @@ static func apply(state: TankState, part: int, base_damage: int) -> Result:
     state.parts[part] = after
     if before > 0.0 and after <= 0.0:
         r.part_just_destroyed = true
-    var total: float = 0.0
-    for p in state.parts.values():
-        total += p
-    state.hp = int(round(total))
-    var hull_dead: bool = state.parts.get(TankState.Part.HULL, 1.0) <= 0.0
-    var top_dead: bool = state.parts.get(TankState.Part.TOP, 1.0) <= 0.0
-    if state.hp <= 0 or hull_dead or top_dead:
-        if state.alive:
-            state.alive = false
-            state.hp = 0
-            r.tank_just_destroyed = true
+    state.hp = max(0, state.hp - int(round(dmg)))
+    if state.hp <= 0 and state.alive:
+        state.alive = false
+        r.tank_just_destroyed = true
     return r

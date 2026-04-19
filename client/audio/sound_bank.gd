@@ -42,6 +42,25 @@ static func make_fire_shot() -> AudioStreamWAV:
         frames[i] = (0.7 * thump + 0.8 * noise) * env * 0.85
     return _build_wav(frames, false)
 
+# Deep armor-punch thud for shell-vs-tank hits — distinct from the light clang
+# used for obstacle/terrain impacts so the player can tell "I hit the tank".
+# Low-frequency thump + dampened ring + short grit tail.
+static func make_tank_hit_thud() -> AudioStreamWAV:
+    var dur: float = 0.45
+    var n: int = int(SAMPLE_RATE * dur)
+    var frames := PackedFloat32Array()
+    frames.resize(n)
+    var rng := RandomNumberGenerator.new()
+    rng.seed = 0xB0DD
+    for i in n:
+        var t: float = float(i) / SAMPLE_RATE
+        var env_thump: float = exp(-t * 7.0)
+        var thump: float = sin(TAU * 95.0 * t) + 0.5 * sin(TAU * 140.0 * t)
+        var ring: float = (sin(TAU * 320.0 * t) + 0.4 * sin(TAU * 480.0 * t)) * exp(-t * 14.0)
+        var grit: float = rng.randf_range(-1.0, 1.0) * exp(-t * 22.0)
+        frames[i] = (0.9 * thump * env_thump + 0.35 * ring + 0.3 * grit) * 0.85
+    return _build_wav(frames, false)
+
 # Metallic clang when a shell strikes armor.
 static func make_hit_clang() -> AudioStreamWAV:
     var dur: float = 0.25

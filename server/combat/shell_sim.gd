@@ -127,3 +127,6 @@ func _obstacle_half_height(kind: int) -> float:
 
 func all_active() -> Array:
     return _shells
+
+func clear() -> void:
+    _shells.clear()

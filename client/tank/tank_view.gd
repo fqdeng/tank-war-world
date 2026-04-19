@@ -16,6 +16,10 @@ var _body_mesh: MeshInstance3D
 var _turret: Node3D
 var _barrel: Node3D
 var _hp: int = 0
+var _max_hp: int = Constants.TANK_MAX_HP
+var _hp_bar_root: Node3D
+var _hp_bar_fill_anchor: Node3D
+var _hp_bar_fill_mat: StandardMaterial3D
 var _dust: CPUParticles3D
 var _engine: AudioStreamPlayer3D
 var _prev_pos: Vector3 = Vector3.ZERO
@@ -53,6 +57,22 @@ func _build_mesh() -> void:
     # Body center at 0.6 → body spans 0.0 to 1.2 so the bottom sits on the ground.
     _body_mesh.position.y = 0.6
     add_child(_body_mesh)
+
+    # Rear fuel drum — mounted horizontally on the rear deck. Front of the tank
+    # is -Z, so this tells the viewer which way is back at a glance.
+    var fuel := MeshInstance3D.new()
+    var fuel_cyl := CylinderMesh.new()
+    fuel_cyl.top_radius = 0.28
+    fuel_cyl.bottom_radius = 0.28
+    fuel_cyl.height = 1.6
+    fuel.mesh = fuel_cyl
+    fuel.rotation = Vector3(0, 0, PI / 2)  # cylinder axis Y → X (drum lies across the back)
+    fuel.position = Vector3(0, 1.48, 2.0)  # just above hull top (1.2), near rear face (+2.5)
+    var fuel_mat := StandardMaterial3D.new()
+    fuel_mat.albedo_color = Color(0.32, 0.34, 0.22)  # olive drab — reads as a drum, not body
+    fuel_mat.roughness = 0.8
+    fuel.material_override = fuel_mat
+    add_child(fuel)
 
     _turret = Node3D.new()
     _turret.position = Vector3(0, 1.4, 0)  # turret sits on top of body (1.2)
@@ -111,12 +131,91 @@ func _build_mesh() -> void:
     _engine.pitch_scale = 0.9
     add_child(_engine)
 
+    _build_hp_bar()
+
+# HP bar floating above the turret. Two coplanar quads (dark backing + colored
+# fill) rotated as a single rigid group to face the camera each frame — we
+# can't use per-material BILLBOARD_ENABLED because the fill pivot is offset
+# from the bg pivot, so independent per-quad billboarding would make the fill
+# drift in/out of the bg as the camera rotates.
+func _build_hp_bar() -> void:
+    _hp_bar_root = Node3D.new()
+    _hp_bar_root.position = Vector3(0, 3.6, 0)
+    add_child(_hp_bar_root)
+
+    var bg_mi := MeshInstance3D.new()
+    var bg_quad := QuadMesh.new()
+    bg_quad.size = Vector2(2.2, 0.28)
+    bg_mi.mesh = bg_quad
+    var bg_mat := StandardMaterial3D.new()
+    bg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    bg_mat.albedo_color = Color(0.08, 0.08, 0.08, 0.85)
+    bg_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    bg_mi.material_override = bg_mat
+    _hp_bar_root.add_child(bg_mi)
+
+    _hp_bar_fill_anchor = Node3D.new()
+    _hp_bar_fill_anchor.position = Vector3(-1.0, 0, 0.01)  # left edge of bg, tiny z so it sits in front
+    _hp_bar_root.add_child(_hp_bar_fill_anchor)
+
+    var fill_mi := MeshInstance3D.new()
+    var fill_quad := QuadMesh.new()
+    fill_quad.size = Vector2(2.0, 0.2)
+    fill_mi.mesh = fill_quad
+    fill_mi.position = Vector3(1.0, 0, 0)  # mesh center sits at +width/2 so left edge = anchor origin
+    _hp_bar_fill_mat = StandardMaterial3D.new()
+    _hp_bar_fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    _hp_bar_fill_mat.albedo_color = Color(0.2, 0.9, 0.3)
+    fill_mi.material_override = _hp_bar_fill_mat
+    _hp_bar_fill_anchor.add_child(fill_mi)
+
+    _update_hp_bar()
+
+func _face_hp_bar_to_camera() -> void:
+    if _hp_bar_root == null:
+        return
+    var cam := get_viewport().get_camera_3d()
+    if cam == null:
+        return
+    var root_pos: Vector3 = _hp_bar_root.global_position
+    var to_cam: Vector3 = cam.global_position - root_pos
+    if to_cam.length_squared() < 0.0001:
+        return
+    # Quad's front face is +Z local, so we align the root's +Z with the
+    # to-camera direction. Build an orthonormal basis keeping world UP, which
+    # keeps the bar horizontal regardless of camera pitch.
+    var forward: Vector3 = to_cam.normalized()
+    var up_hint: Vector3 = Vector3.UP
+    if absf(forward.dot(up_hint)) > 0.99:
+        up_hint = Vector3.FORWARD
+    var right: Vector3 = up_hint.cross(forward).normalized()
+    var up: Vector3 = forward.cross(right).normalized()
+    _hp_bar_root.global_transform = Transform3D(Basis(right, up, forward), root_pos)
+
+func _update_hp_bar() -> void:
+    if _hp_bar_fill_anchor == null or _max_hp <= 0:
+        return
+    var r: float = clamp(float(_hp) / float(_max_hp), 0.0, 1.0)
+    _hp_bar_fill_anchor.scale.x = max(r, 0.0001)
+    if _hp_bar_fill_mat:
+        # green → yellow → red
+        var c: Color
+        if r > 0.5:
+            var k: float = (r - 0.5) * 2.0
+            c = Color(1.0 - k, 0.85, 0.25).lerp(Color(0.2, 0.9, 0.3), k)
+        else:
+            var k: float = r * 2.0
+            c = Color(0.95, 0.2, 0.2).lerp(Color(1.0, 0.85, 0.25), k)
+        _hp_bar_fill_mat.albedo_color = c
+
 func apply_snapshot(pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int) -> void:
     _target_pos = pos
     _target_yaw = yaw
     _target_turret_yaw = turret_yaw
     _target_gun_pitch = gun_pitch
-    _hp = hp
+    if hp != _hp:
+        _hp = hp
+        _update_hp_bar()
     if _first_snapshot:
         # First snapshot: snap directly so we don't lerp from origin to spawn.
         _first_snapshot = false
@@ -128,6 +227,8 @@ func apply_snapshot(pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: floa
             _barrel.rotation.x = gun_pitch
 
 func _process(delta: float) -> void:
+    # HP bar faces the camera as a rigid unit — run for all tanks (local + remote).
+    _face_hp_bar_to_camera()
     # Local tank is driven by apply_predicted each frame — skip the remote-smoothing lerp.
     if is_local:
         return
@@ -161,7 +262,9 @@ func apply_predicted(pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: flo
         _turret.rotation.y = turret_yaw
     if _barrel:
         _barrel.rotation.x = gun_pitch
-    _hp = hp
+    if hp != _hp:
+        _hp = hp
+        _update_hp_bar()
     _first_snapshot = false
 
 func _update_dust(new_pos: Vector3) -> void:
@@ -185,6 +288,12 @@ func _update_dust(new_pos: Vector3) -> void:
         var s: float = clamp(_engine_speed / 18.0, 0.0, 1.2)
         _engine.pitch_scale = 0.75 + s * 0.85
         _engine.volume_db = lerp(-18.0, -3.0, clamp(s, 0.0, 1.0))
+
+func set_hp(hp: int) -> void:
+    if hp == _hp:
+        return
+    _hp = hp
+    _update_hp_bar()
 
 func flash_hit() -> void:
     if _body_mesh == null:

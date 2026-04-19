@@ -83,6 +83,7 @@ func test_hit_roundtrip() -> void:
     msg.damage = 260
     msg.part_id = 2
     msg.hit_point = Vector3(1, 2, 3)
+    msg.victim_hp_after = 1740
     var bytes := msg.encode()
     var decoded := Messages.Hit.decode(bytes)
     assert_eq(decoded.shell_id, 99)
@@ -90,6 +91,7 @@ func test_hit_roundtrip() -> void:
     assert_eq(decoded.victim_id, 5)
     assert_eq(decoded.damage, 260)
     assert_eq(decoded.part_id, 2)
+    assert_eq(decoded.victim_hp_after, 1740)
 
 func test_shell_spawned_roundtrip() -> void:
     var msg := Messages.ShellSpawned.new()

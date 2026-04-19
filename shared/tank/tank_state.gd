@@ -47,7 +47,8 @@ func is_part_destroyed(p: int) -> bool:
     return parts[p] <= 0.0
 
 func can_fire() -> bool:
-    return alive and not is_part_destroyed(Part.TURRET) and reload_remaining <= 0.0 and ammo > 0
+    # Ammo is infinite; reload cooldown is the only rate limit.
+    return alive and not is_part_destroyed(Part.TURRET) and reload_remaining <= 0.0
 
 func is_turret_disabled() -> bool:
     return is_part_destroyed(Part.TURRET)

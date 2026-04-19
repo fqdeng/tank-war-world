@@ -58,3 +58,35 @@ offset_right = -20
 offset_bottom = -18
 horizontal_alignment = 2
 text = "GUN +0.0°"
+
+[node name="HitLabel" type="Label" parent="Reticle"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 40
+offset_top = -16
+offset_right = 220
+offset_bottom = 12
+horizontal_alignment = 0
+vertical_alignment = 1
+text = ""
+theme_override_colors/font_color = Color(1, 0.75, 0.3, 1)
+theme_override_font_sizes/font_size = 22
+
+[node name="KillLabel" type="Label" parent="Reticle"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -180
+offset_top = -90
+offset_right = 180
+offset_bottom = -50
+horizontal_alignment = 1
+vertical_alignment = 1
+text = ""
+theme_override_colors/font_color = Color(1, 0.2, 0.2, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 36

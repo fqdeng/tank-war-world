@@ -13,6 +13,12 @@ var _repath_timer: float = 0.0
 var _fire_cooldown: float = 0.0
 var _rng := RandomNumberGenerator.new()
 
+# Cap how fast AI can traverse the turret / elevate the gun so it can't snap
+# onto a target in one tick. Before this, the brain set turret_yaw directly to
+# the target bearing each tick → effectively instant aimbot.
+const AI_TURRET_SLEW_DPS: float = 55.0
+const AI_PITCH_SLEW_DPS: float = 30.0
+
 func setup(pid: int, world) -> void:
     _player_id = pid
     _rng.seed = hash(pid) + int(Time.get_ticks_msec())
@@ -33,19 +39,26 @@ func step(state: TankState, world, dt: float) -> Dictionary:
     var move_forward: float = 1.0 if abs(yaw_err) < 1.2 else 0.0
 
     # Engage nearest enemy ONLY if line-of-sight is not blocked by an obstacle.
+    # Turret/gun slew toward the desired bearing at a capped rate so aim feels
+    # gradual — fires only after current aim is within tolerance AND settled.
     var target_id: int = _find_visible_enemy(state, world)
-    var turret_yaw: float = 0.0
-    var gun_pitch: float = 0.0
+    var turret_yaw: float = state.turret_yaw
+    var gun_pitch: float = state.gun_pitch
     var fire_pressed: bool = false
     if target_id != 0:
         var target = world.tanks[target_id]
         var to_t: Vector3 = target.pos - state.pos
         var horiz_dist: float = sqrt(to_t.x * to_t.x + to_t.z * to_t.z)
         var world_turret_yaw: float = atan2(-to_t.x, -to_t.z)
-        turret_yaw = wrapf(world_turret_yaw - state.yaw, -PI, PI)
-        gun_pitch = clamp(_estimate_pitch(horiz_dist, to_t.y), deg_to_rad(-8.0), deg_to_rad(12.0))
-        var aim_err: float = abs(wrapf(world_turret_yaw - (state.yaw + turret_yaw), -PI, PI))
-        if aim_err < 0.06 and _fire_cooldown <= 0.0:
+        var desired_turret_yaw: float = wrapf(world_turret_yaw - state.yaw, -PI, PI)
+        var max_dyaw: float = deg_to_rad(AI_TURRET_SLEW_DPS) * dt
+        var yaw_delta: float = clamp(wrapf(desired_turret_yaw - state.turret_yaw, -PI, PI), -max_dyaw, max_dyaw)
+        turret_yaw = state.turret_yaw + yaw_delta
+        var desired_pitch: float = clamp(_estimate_pitch(horiz_dist, to_t.y), deg_to_rad(-8.0), deg_to_rad(12.0))
+        var max_dpitch: float = deg_to_rad(AI_PITCH_SLEW_DPS) * dt
+        gun_pitch = state.gun_pitch + clamp(desired_pitch - state.gun_pitch, -max_dpitch, max_dpitch)
+        var aim_err: float = abs(wrapf(desired_turret_yaw - turret_yaw, -PI, PI))
+        if aim_err < 0.04 and _fire_cooldown <= 0.0:
             fire_pressed = true
             _fire_cooldown = Constants.TANK_RELOAD_S + _rng.randf_range(1.2, 2.5)
     return {

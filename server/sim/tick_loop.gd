@@ -13,6 +13,7 @@ const AIBrain = preload("res://server/ai/ai_brain.gd")
 const TankCollision = preload("res://shared/world/tank_collision.gd")
 
 const TARGET_TOTAL_TANKS: int = 10  # fill with AI until this many alive tanks exist
+const MATCH_KILL_TARGET: int = 100  # first team to this many kills wins — game restarts
 
 var _world
 var _ws_server
@@ -101,14 +102,6 @@ func _step_tick(dt: float) -> void:
             state.reload_remaining = max(0.0, state.reload_remaining - dt)
         if state.spawn_invuln_remaining > 0.0:
             state.spawn_invuln_remaining = max(0.0, state.spawn_invuln_remaining - dt)
-        # Ammo regeneration up to capacity
-        if state.ammo < Constants.TANK_AMMO_CAPACITY:
-            state.ammo_regen_accum += dt
-            while state.ammo_regen_accum >= Constants.TANK_AMMO_REGEN_S and state.ammo < Constants.TANK_AMMO_CAPACITY:
-                state.ammo_regen_accum -= Constants.TANK_AMMO_REGEN_S
-                state.ammo += 1
-        else:
-            state.ammo_regen_accum = 0.0
 
     _shell_sim.tick(dt)
 
@@ -197,7 +190,6 @@ func _on_fire_received(peer_id: int, _fire_msg) -> void:
 func _spawn_shell(shooter_id: int, state, aim_turret_yaw: float, aim_gun_pitch: float) -> void:
     if not state.can_fire():
         return
-    state.ammo -= 1
     state.reload_remaining = Constants.TANK_RELOAD_S
     var tank_xf := Transform3D(Basis().rotated(Vector3.UP, state.yaw), state.pos)
     var turret_local := Transform3D(Basis().rotated(Vector3.UP, aim_turret_yaw), Vector3(0, 1.4, 0))
@@ -298,6 +290,7 @@ func _on_shell_hit(shell, victim_id: int, hit_point: Vector3, part_id: int, obst
         hit_msg_i.damage = 0
         hit_msg_i.part_id = part_id
         hit_msg_i.hit_point = hit_point
+        hit_msg_i.victim_hp_after = victim.hp
         _ws_server.broadcast(MessageType.HIT, hit_msg_i.encode())
         return
     var result = PartDamage.apply(victim, part_id, Constants.TANK_FIRE_DAMAGE)
@@ -308,19 +301,38 @@ func _on_shell_hit(shell, victim_id: int, hit_point: Vector3, part_id: int, obst
     hit_msg.damage = int(round(result.actual_damage))
     hit_msg.part_id = part_id
     hit_msg.hit_point = hit_point
+    hit_msg.victim_hp_after = victim.hp
     _ws_server.broadcast(MessageType.HIT, hit_msg.encode())
     if result.tank_just_destroyed:
         _respawns[victim_id] = Constants.RESPAWN_COOLDOWN_S
         # Team kill scoring: only credit if the shooter still exists and is on
         # the opposing team (no team-kill credit, no credit for orphan shells).
+        var scoring_team: int = -1
         if _world.tanks.has(shell.shooter_id):
             var shooter_team: int = _world.tanks[shell.shooter_id].team
             if shooter_team != victim.team and _team_kills.has(shooter_team):
                 _team_kills[shooter_team] += 1
+                scoring_team = shooter_team
         var death_msg := Messages.Death.new()
         death_msg.victim_id = victim_id
         death_msg.killer_id = shell.shooter_id
         _ws_server.broadcast(MessageType.DEATH, death_msg.encode())
+        if scoring_team >= 0 and _team_kills[scoring_team] >= MATCH_KILL_TARGET:
+            _restart_match(scoring_team)
+
+# Hard reset after MATCH_KILL_TARGET: wipe scores, clear in-flight shells and
+# pending respawns, then respawn every tank (human + AI). Humans get a Respawn
+# packet so their client teleports prediction to the new spawn; AIs just get
+# the server-side reset and their new pos lands via the next snapshot.
+func _restart_match(winner_team: int) -> void:
+    print("[Server] Match restart — team %d reached %d kills" % [winner_team, MATCH_KILL_TARGET])
+    _team_kills[0] = 0
+    _team_kills[1] = 0
+    _respawns.clear()
+    if _shell_sim:
+        _shell_sim.clear()
+    for pid in _world.tanks.keys():
+        _respawn_player(pid)
 
 func _respawn_player(player_id: int) -> void:
     if not _world.tanks.has(player_id):
