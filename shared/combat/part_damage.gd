@@ -43,6 +43,9 @@ static func apply(state: TankState, part: int, base_damage: int) -> Result:
     state.parts[part] = after
     if before > 0.0 and after <= 0.0:
         r.part_just_destroyed = true
+        # Kick off regen countdown so functional parts auto-repair; total hp
+        # (state.hp) still drains each hit and can kill the tank independently.
+        state.part_regen_remaining[part] = Constants.PART_REGEN_DELAY_S
     state.hp = max(0, state.hp - int(round(dmg)))
     if state.hp <= 0 and state.alive:
         state.alive = false

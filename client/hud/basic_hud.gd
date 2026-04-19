@@ -12,6 +12,7 @@ extends CanvasLayer
 @onready var _hit_label: Label = $HitLabel
 @onready var _kill_label: Label = $KillLabel
 @onready var _respawn_label: Label = $RespawnLabel
+@onready var _turret_damage_label: Label = $TurretDamageLabel
 var _hit_tween: Tween
 var _kill_tween: Tween
 
@@ -41,6 +42,17 @@ func _resize_radar() -> void:
 func set_status(s: String) -> void:
     if _status:
         _status.text = "STATUS: " + s
+
+# Shown while the local tank's turret is broken. Pass 0 to hide.
+func set_turret_damaged(seconds: float) -> void:
+    if _turret_damage_label == null:
+        return
+    if seconds > 0.0:
+        _turret_damage_label.text = "炮管损坏 — 重生 %.1fs" % seconds
+        _turret_damage_label.visible = true
+    else:
+        _turret_damage_label.visible = false
+        _turret_damage_label.text = ""
 
 # Big center-screen overlay shown during respawn. Pass 0 (or negative) to hide.
 func set_respawn_countdown(seconds: float) -> void:

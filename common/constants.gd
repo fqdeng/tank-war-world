@@ -68,6 +68,13 @@ const MULT_TOP: float = 2.5
 const ENGINE_SPEED_FACTOR_WHEN_DEAD: float = 0.25
 const ENGINE_ACCEL_FACTOR_WHEN_DEAD: float = 0.5
 
+# --- Part regeneration ---
+# Once a part is destroyed, it self-repairs to full functional HP after this
+# delay. Keeps a broken turret from locking a player out of firing for the
+# rest of their life. Total HP (state.hp) is NOT restored — the lethal
+# accumulator is still ticking, so the tank can die while waiting to heal.
+const PART_REGEN_DELAY_S: float = 8.0
+
 # --- Obstacle collision (server authoritative) ---
 # Radii use roughly the inscribed circle (half-width) of the visible mesh so
 # the tank stops visually flush with the obstacle instead of with a gap.

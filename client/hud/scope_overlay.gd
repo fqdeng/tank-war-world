@@ -8,6 +8,7 @@ extends Control
 @onready var _reload: ProgressBar = $ReloadBar
 @onready var _hit_label: Label = $HitLabel
 @onready var _kill_label: Label = $KillLabel
+@onready var _turret_damage_label: Label = $TurretDamageLabel
 var _hit_tween: Tween
 var _kill_tween: Tween
 
@@ -35,6 +36,16 @@ func set_reload(remaining_s: float, total_s: float) -> void:
         return
     var frac: float = 1.0 - clamp(remaining_s / total_s, 0.0, 1.0)
     _reload.value = frac
+
+func set_turret_damaged(seconds: float) -> void:
+    if _turret_damage_label == null:
+        return
+    if seconds > 0.0:
+        _turret_damage_label.text = "炮管损坏 — 重生 %.1fs" % seconds
+        _turret_damage_label.visible = true
+    else:
+        _turret_damage_label.visible = false
+        _turret_damage_label.text = ""
 
 func show_hit(damage: int) -> void:
     if _hit_label == null:

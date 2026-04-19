@@ -23,6 +23,10 @@ var spawn_invuln_remaining: float = 0.0  # seconds of post-spawn damage immunity
 
 # Parts: Part enum int → float sub HP
 var parts: Dictionary = {}
+# Snapshot of per-part max HP, recorded at init so regen can restore to full.
+var parts_max: Dictionary = {}
+# Per-part countdown (s). Entry exists only while the part is broken + healing.
+var part_regen_remaining: Dictionary = {}
 
 func initialize_parts(total_max_hp: int) -> void:
     var t := float(total_max_hp)
@@ -34,6 +38,8 @@ func initialize_parts(total_max_hp: int) -> void:
         Part.RIGHT_TRACK: t * Constants.PART_HP_RIGHT_TRACK,
         Part.TOP: t * Constants.PART_HP_TOP,
     }
+    parts_max = parts.duplicate()
+    part_regen_remaining = {}
     hp = total_max_hp
 
 func part_hp(p: int) -> float:

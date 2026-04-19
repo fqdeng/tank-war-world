@@ -163,6 +163,10 @@ func _handle_snapshot(msg) -> void:
                 _prediction.reconcile(t.pos, t.yaw, t.turret_yaw, t.gun_pitch, t.hp, t.last_input_tick, t.ammo, t.reload_remaining)
             _camera.set_target(_tanks[t.player_id])
             _hud.set_hp(t.hp)
+            if _hud:
+                _hud.set_turret_damaged(t.turret_regen_remaining)
+            if _scope_overlay and _scope_overlay.has_node("Reticle"):
+                _scope_overlay.get_node("Reticle").set_turret_damaged(t.turret_regen_remaining)
         else:
             _ensure_view(t.player_id, t.team, false)
             if not _remote_interp.has(t.player_id):
@@ -339,6 +343,12 @@ func _handle_death(msg) -> void:
         # (scope view hides the full HUD).
         if _in_scope:
             _exit_scope()
+        # While dead, our tank is excluded from snapshots — explicitly clear the
+        # turret-damage prompt so it doesn't freeze on the last reported value.
+        if _hud:
+            _hud.set_turret_damaged(0.0)
+        if _scope_overlay and _scope_overlay.has_node("Reticle"):
+            _scope_overlay.get_node("Reticle").set_turret_damaged(0.0)
     if msg.killer_id == _my_player_id and msg.victim_id != _my_player_id:
         if _scope_overlay and _scope_overlay.has_node("Reticle"):
             _scope_overlay.get_node("Reticle").show_kill(int(msg.victim_id))

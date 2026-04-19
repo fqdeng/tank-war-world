@@ -102,6 +102,18 @@ func _step_tick(dt: float) -> void:
             state.reload_remaining = max(0.0, state.reload_remaining - dt)
         if state.spawn_invuln_remaining > 0.0:
             state.spawn_invuln_remaining = max(0.0, state.spawn_invuln_remaining - dt)
+        # Part regen: tick each broken part's countdown; when it hits zero,
+        # snap the part back to its init max HP so the tank recovers the
+        # functional capability (turret → can fire, engine → top speed, etc.).
+        if not state.part_regen_remaining.is_empty():
+            var finished: Array = []
+            for p in state.part_regen_remaining.keys():
+                state.part_regen_remaining[p] -= dt
+                if state.part_regen_remaining[p] <= 0.0:
+                    finished.append(p)
+            for p in finished:
+                state.parts[p] = state.parts_max.get(p, 0.0)
+                state.part_regen_remaining.erase(p)
 
     _shell_sim.tick(dt)
 
@@ -119,7 +131,8 @@ func _step_tick(dt: float) -> void:
     for pid in _world.tanks:
         var s = _world.tanks[pid]
         if s.alive:
-            snap.add_tank(s.player_id, s.team, s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp, s.last_acked_input_tick, s.ammo, s.reload_remaining)
+            var turret_regen: float = float(s.part_regen_remaining.get(TankState.Part.TURRET, 0.0))
+            snap.add_tank(s.player_id, s.team, s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp, s.last_acked_input_tick, s.ammo, s.reload_remaining, turret_regen)
     snap.team_kills_0 = int(_team_kills.get(0, 0))
     snap.team_kills_1 = int(_team_kills.get(1, 0))
     _ws_server.broadcast(MessageType.SNAPSHOT, snap.encode())

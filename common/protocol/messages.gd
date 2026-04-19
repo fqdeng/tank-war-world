@@ -106,6 +106,7 @@ class TankSnapshot:
     var last_input_tick: int = 0
     var ammo: int = 0
     var reload_remaining: float = 0.0
+    var turret_regen_remaining: float = 0.0  # 0 when turret is functional; >0 while repairing
 
 class Snapshot:
     var tick: int = 0
@@ -113,7 +114,7 @@ class Snapshot:
     var team_kills_0: int = 0
     var team_kills_1: int = 0
 
-    func add_tank(pid: int, team: int, pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int, last_input_tick: int = 0, ammo: int = 0, reload_remaining: float = 0.0) -> void:
+    func add_tank(pid: int, team: int, pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int, last_input_tick: int = 0, ammo: int = 0, reload_remaining: float = 0.0, turret_regen_remaining: float = 0.0) -> void:
         var t := TankSnapshot.new()
         t.player_id = pid
         t.team = team
@@ -125,6 +126,7 @@ class Snapshot:
         t.last_input_tick = last_input_tick
         t.ammo = ammo
         t.reload_remaining = reload_remaining
+        t.turret_regen_remaining = turret_regen_remaining
         tanks.append(t)
 
     func encode() -> PackedByteArray:
@@ -142,6 +144,7 @@ class Snapshot:
             Codec.write_u32(buf, t.last_input_tick)
             Codec.write_u8(buf, t.ammo)
             Codec.write_f32(buf, t.reload_remaining)
+            Codec.write_f32(buf, t.turret_regen_remaining)
         Codec.write_u16(buf, team_kills_0)
         Codec.write_u16(buf, team_kills_1)
         return buf
@@ -163,6 +166,7 @@ class Snapshot:
             t.last_input_tick = Codec.read_u32(buf, c)
             t.ammo = Codec.read_u8(buf, c)
             t.reload_remaining = Codec.read_f32(buf, c)
+            t.turret_regen_remaining = Codec.read_f32(buf, c)
             m.tanks.append(t)
         m.team_kills_0 = Codec.read_u16(buf, c)
         m.team_kills_1 = Codec.read_u16(buf, c)
