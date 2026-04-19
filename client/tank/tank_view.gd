@@ -122,14 +122,19 @@ func _build_mesh() -> void:
     _dust.mesh = dust_mesh
     add_child(_dust)
 
-    _engine = AudioStreamPlayer3D.new()
-    _engine.stream = SoundBank.make_engine_loop()
-    _engine.unit_size = 14.0
-    _engine.max_distance = 120.0
-    _engine.autoplay = true
-    _engine.volume_db = -12.0
-    _engine.pitch_scale = 0.9
-    add_child(_engine)
+    # Godot 4.6 Web AudioWorklet mangles AudioStreamWAV LOOP_FORWARD +
+    # pitch_scale into overlapping-playback artifacts that read as ghost
+    # "volume ramp-up". Skip the engine loop on web entirely; modulation below
+    # stays guarded by `if _engine`.
+    if not OS.has_feature("web"):
+        _engine = AudioStreamPlayer3D.new()
+        _engine.stream = SoundBank.make_engine_loop()
+        _engine.unit_size = 14.0
+        _engine.max_distance = 120.0
+        _engine.autoplay = true
+        _engine.volume_db = -12.0
+        _engine.pitch_scale = 0.9
+        add_child(_engine)
 
     _build_hp_bar()
 

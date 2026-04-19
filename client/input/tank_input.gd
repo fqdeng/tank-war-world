@@ -42,6 +42,14 @@ func _input(ev: InputEvent) -> void:
     elif ev is InputEventMouseButton:
         _dbg_button_count += 1
         print("[Input] button #%d idx=%d pressed=%s enabled=%s" % [_dbg_button_count, ev.button_index, str(ev.pressed), str(_enabled)])
+    # Browsers only honor requestPointerLock() inside a real user-gesture stack.
+    # The initial set_enabled() fires on WebSocket connect — not a gesture — so
+    # the web build keeps the cursor loose. Re-capture on the first click/key.
+    if _enabled and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+        var is_press: bool = (ev is InputEventMouseButton and ev.pressed) \
+                or (ev is InputEventKey and ev.pressed and not ev.echo and ev.keycode != KEY_ESCAPE)
+        if is_press:
+            Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
     if not _enabled:
         return
     if ev is InputEventMouseMotion:
