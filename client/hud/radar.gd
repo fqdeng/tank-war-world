@@ -74,12 +74,14 @@ func _draw() -> void:
             dx *= scale
             dz *= scale
             dist = RADAR_RANGE_M
-        # Rotate so player's forward is up on radar (player yaw 0 = facing -Z world)
-        var cy_rot: float = cos(-_self_yaw)
-        var sy_rot: float = sin(-_self_yaw)
+        # World→local: tank forward at yaw θ is (-sin θ, 0, -cos θ), so the
+        # inverse-rotation of a world delta uses +θ (NOT -θ, which mirrors LR).
+        var cy_rot: float = cos(_self_yaw)
+        var sy_rot: float = sin(_self_yaw)
         var rx: float = dx * cy_rot - dz * sy_rot
         var rz: float = dx * sy_rot + dz * cy_rot
-        # -Z in front → draw forward = up = -Y on screen
+        # Local-forward (-Z) maps to up on the radar (-Y screen); rz is local +Z
+        # (behind the player), which naturally draws downward.
         var px: float = cx + rx / RADAR_RANGE_M * radius
         var py: float = cy + rz / RADAR_RANGE_M * radius
         var team: int = int(blip["team"])
@@ -91,11 +93,12 @@ func _draw() -> void:
         var remaining: float = float(int(blip["expires_ms"]) - now) / float(DOT_TTL_MS)
         remaining = clamp(remaining, 0.0, 1.0)
         col.a = 0.35 + 0.65 * remaining
-        draw_circle(Vector2(px, py), 4.0, col)
+        draw_circle(Vector2(px, py), 8.0, col)
 
 func _draw_north_marker(center: Vector2, radius: float) -> void:
-    # World north := -Z direction. Transform into radar-local space (forward = up).
-    var nx: float = -sin(_self_yaw)
+    # World north := -Z direction. After the world→local rotation above, a (0,-R)
+    # delta lands at (R·sin θ, -R·cos θ) in radar-local coords.
+    var nx: float = sin(_self_yaw)
     var nz: float = -cos(_self_yaw)
     var edge: float = radius - 10.0
     var tick_inner: float = radius - 4.0

@@ -64,13 +64,18 @@ func _swept_collide(s: Shell, t0: float, t1: float, subs: int) -> Dictionary:
             if pos.y <= terrain_h:
                 return {"hit": true, "victim_id": 0, "point": Vector3(pos.x, terrain_h, pos.z), "part_id": 0, "obstacle_id": 0, "obstacle_kind": 0}
         # Tanks
+        # Shooter may have disconnected while the shell is in flight; fall back
+        # to treating the shell as team-less rather than crashing on the lookup.
+        var shooter_team: int = -1
+        if _world.tanks.has(s.shooter_id):
+            shooter_team = _world.tanks[s.shooter_id].team
         for pid in _world.tanks:
             if pid == s.shooter_id:
                 continue
             var target = _world.tanks[pid]
             if not target.alive:
                 continue
-            if target.team == _world.tanks[s.shooter_id].team:
+            if shooter_team >= 0 and target.team == shooter_team:
                 continue
             var center: Vector3 = target.pos + Vector3(0, 1.2, 0)
             var seg_dir: Vector3 = pos - prev_pos

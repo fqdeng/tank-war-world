@@ -47,7 +47,7 @@ func step(state: TankState, world, dt: float) -> Dictionary:
         var aim_err: float = abs(wrapf(world_turret_yaw - (state.yaw + turret_yaw), -PI, PI))
         if aim_err < 0.06 and _fire_cooldown <= 0.0:
             fire_pressed = true
-            _fire_cooldown = Constants.TANK_RELOAD_S + _rng.randf_range(0.3, 1.0)
+            _fire_cooldown = Constants.TANK_RELOAD_S + _rng.randf_range(1.2, 2.5)
     return {
         "move_forward": move_forward,
         "move_turn": move_turn,

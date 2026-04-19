@@ -59,7 +59,9 @@ func _input(ev: InputEvent) -> void:
         elif ev.button_index == MOUSE_BUTTON_WHEEL_DOWN and ev.pressed:
             zoom_cycled.emit(-1)
     elif ev is InputEventKey:
-        if ev.pressed and ev.keycode == KEY_ESCAPE:
+        if ev.pressed and not ev.echo and ev.keycode == KEY_SPACE:
+            _fire_latched = true
+        elif ev.pressed and ev.keycode == KEY_ESCAPE:
             Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func build_input_message():
@@ -67,12 +69,21 @@ func build_input_message():
     m.move_forward = 0.0
     m.move_turn = 0.0
     if _enabled:
-        if Input.is_key_pressed(KEY_W): m.move_forward += 1.0
-        if Input.is_key_pressed(KEY_S): m.move_forward -= 1.0
-        # A (left) → positive yaw delta (CCW from above in Godot) → tank turns left
-        # D (right) → negative yaw delta → tank turns right
-        if Input.is_key_pressed(KEY_A): m.move_turn += 1.0
-        if Input.is_key_pressed(KEY_D): m.move_turn -= 1.0
+        var fwd: float = 0.0
+        var turn: float = 0.0
+        if Input.is_key_pressed(KEY_W): fwd += 1.0
+        if Input.is_key_pressed(KEY_S): fwd -= 1.0
+        if Input.is_key_pressed(KEY_A): turn += 1.0
+        if Input.is_key_pressed(KEY_D): turn -= 1.0
+        # Camera follows turret, so when the turret aims rearward the camera sits
+        # in front of the body — W would then drive the tank toward the camera
+        # (feels like reverse). Flip WASD to camera-relative when the turret is
+        # in the rear hemisphere.
+        if cos(_turret_yaw) < 0.0:
+            fwd = -fwd
+            turn = -turn
+        m.move_forward = fwd
+        m.move_turn = turn
     m.turret_yaw = _turret_yaw
     m.gun_pitch = _gun_pitch
     m.fire_pressed = _fire_latched

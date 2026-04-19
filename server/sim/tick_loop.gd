@@ -10,6 +10,7 @@ const Ballistics = preload("res://shared/combat/ballistics.gd")
 const PartDamage = preload("res://shared/combat/part_damage.gd")
 const ShellSim = preload("res://server/combat/shell_sim.gd")
 const AIBrain = preload("res://server/ai/ai_brain.gd")
+const TankCollision = preload("res://shared/world/tank_collision.gd")
 
 const TARGET_TOTAL_TANKS: int = 10  # fill with AI until this many alive tanks exist
 
@@ -22,6 +23,7 @@ var _tick: int = 0
 var _latest_input: Dictionary = {}
 var _respawns: Dictionary = {}
 var _ai_brains: Dictionary = {}  # player_id → AIBrain
+var _team_kills: Dictionary = {0: 0, 1: 0}  # team → destroyed enemies
 
 func set_world(w) -> void:
     _world = w
@@ -73,24 +75,24 @@ func _step_tick(dt: float) -> void:
         if not state.alive:
             continue
         var inp = _latest_input.get(pid, {"move_forward": 0.0, "move_turn": 0.0, "turret_yaw": 0.0, "gun_pitch": 0.0, "fire_pressed": false, "tick": 0})
-        TankMovement.step(state, inp, dt)
         state.last_acked_input_tick = int(inp.get("tick", 0))
-        # Clamp to playable area so players can't leave the map.
-        var margin: float = Constants.PLAYABLE_MARGIN_M
-        var size: float = float(_world.terrain_size)
-        var clamped_x: float = clamp(state.pos.x, margin, size - margin)
-        var clamped_z: float = clamp(state.pos.z, margin, size - margin)
-        if clamped_x != state.pos.x or clamped_z != state.pos.z:
-            state.pos.x = clamped_x
-            state.pos.z = clamped_z
-            state.speed = 0.0
-        # Push tank out of overlapping obstacles (xz only).
-        var push: Vector3 = _resolve_obstacle_collision(state.pos)
-        state.pos.x += push.x
-        state.pos.z += push.z
-        # If still moving into the obstacle, kill forward velocity so the tank stops pressing.
-        if push.length_squared() > 0.0001:
-            state.speed = 0.0
+        # Humans: trust client-reported pos/yaw (the client is authoritative over
+        # its own body now — server-side correction was yanking the tank back on
+        # collisions and producing 20Hz shake). AI still runs TankMovement.step.
+        if state.is_ai:
+            TankMovement.step(state, inp, dt)
+            var clamp_result: Dictionary = TankCollision.clamp_to_playable(state.pos, _world.terrain_size)
+            state.pos = clamp_result["pos"]
+            if clamp_result["clamped"]:
+                state.speed = 0.0
+            var push: Vector3 = TankCollision.resolve_obstacle_push(state.pos, _world.obstacles, _world.destroyed_obstacle_ids)
+            state.pos.x += push.x
+            state.pos.z += push.z
+            if push.length_squared() > 0.0001:
+                state.speed = 0.0
+        elif inp.get("has_client_pose", false):
+            state.pos = inp["pos"]
+            state.yaw = float(inp["yaw"])
         var terrain_h: float = TerrainGenerator.sample_height(_world.heightmap, _world.terrain_size, state.pos.x, state.pos.z)
         state.pos.y = terrain_h
         state.turret_yaw = float(inp.get("turret_yaw", state.turret_yaw))
@@ -125,6 +127,8 @@ func _step_tick(dt: float) -> void:
         var s = _world.tanks[pid]
         if s.alive:
             snap.add_tank(s.player_id, s.team, s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp, s.last_acked_input_tick, s.ammo, s.reload_remaining)
+    snap.team_kills_0 = int(_team_kills.get(0, 0))
+    snap.team_kills_1 = int(_team_kills.get(1, 0))
     _ws_server.broadcast(MessageType.SNAPSHOT, snap.encode())
 
 func _on_client_connected(peer_id: int, connect_msg) -> void:
@@ -167,6 +171,9 @@ func _on_input_received(peer_id: int, input_msg) -> void:
         "gun_pitch": input_msg.gun_pitch,
         "fire_pressed": input_msg.fire_pressed,
         "tick": input_msg.tick,
+        "pos": input_msg.pos,
+        "yaw": input_msg.yaw,
+        "has_client_pose": true,
     }
 
 func _on_fire_received(peer_id: int, _fire_msg) -> void:
@@ -175,6 +182,11 @@ func _on_fire_received(peer_id: int, _fire_msg) -> void:
         return
     var state = _world.tanks[pid]
     var latest_inp: Dictionary = _latest_input.get(pid, {})
+    # Adopt client pose for the shot so the shell originates exactly where the
+    # client drew the barrel (avoids shells spawning at the server's lagged pos).
+    if not state.is_ai and latest_inp.get("has_client_pose", false):
+        state.pos = latest_inp["pos"]
+        state.yaw = float(latest_inp["yaw"])
     var aim_turret_yaw: float = float(latest_inp.get("turret_yaw", state.turret_yaw))
     var aim_gun_pitch: float = float(latest_inp.get("gun_pitch", state.gun_pitch))
     _spawn_shell(pid, state, aim_turret_yaw, aim_gun_pitch)
@@ -299,43 +311,16 @@ func _on_shell_hit(shell, victim_id: int, hit_point: Vector3, part_id: int, obst
     _ws_server.broadcast(MessageType.HIT, hit_msg.encode())
     if result.tank_just_destroyed:
         _respawns[victim_id] = Constants.RESPAWN_COOLDOWN_S
+        # Team kill scoring: only credit if the shooter still exists and is on
+        # the opposing team (no team-kill credit, no credit for orphan shells).
+        if _world.tanks.has(shell.shooter_id):
+            var shooter_team: int = _world.tanks[shell.shooter_id].team
+            if shooter_team != victim.team and _team_kills.has(shooter_team):
+                _team_kills[shooter_team] += 1
         var death_msg := Messages.Death.new()
         death_msg.victim_id = victim_id
         death_msg.killer_id = shell.shooter_id
         _ws_server.broadcast(MessageType.DEATH, death_msg.encode())
-
-# Returns cumulative push vector (xz only) to resolve overlap with obstacles.
-# Simple O(N) scan — fine for the ~1080 obstacles we have in Plan 02.
-func _resolve_obstacle_collision(pos: Vector3) -> Vector3:
-    var push_x: float = 0.0
-    var push_z: float = 0.0
-    var tank_r: float = Constants.TANK_COLLISION_RADIUS
-    for o in _world.obstacles:
-        if _world.is_obstacle_destroyed(o.id):
-            continue
-        var o_r: float = _obstacle_collision_radius(o.kind)
-        var min_d: float = tank_r + o_r
-        var dx: float = pos.x - o.pos.x
-        var dz: float = pos.z - o.pos.z
-        var d_sq: float = dx * dx + dz * dz
-        if d_sq >= min_d * min_d:
-            continue
-        var d: float = sqrt(d_sq)
-        if d < 0.001:
-            # Exactly overlapping center — push in arbitrary direction.
-            push_x += min_d
-            continue
-        var overlap: float = min_d - d
-        push_x += dx / d * overlap
-        push_z += dz / d * overlap
-    return Vector3(push_x, 0.0, push_z)
-
-func _obstacle_collision_radius(kind: int) -> float:
-    match kind:
-        0: return Constants.OBSTACLE_RADIUS_SMALL_ROCK
-        1: return Constants.OBSTACLE_RADIUS_LARGE_ROCK
-        2: return Constants.OBSTACLE_RADIUS_TREE
-    return 1.0
 
 func _respawn_player(player_id: int) -> void:
     if not _world.tanks.has(player_id):

@@ -6,60 +6,70 @@
 [node name="BasicHUD" type="CanvasLayer"]
 script = ExtResource("1")
 
-[node name="Container" type="MarginContainer" parent="."]
-anchor_right = 1.0
-anchor_bottom = 1.0
+[node name="StatusLabel" type="Label" parent="."]
 offset_left = 16
 offset_top = 16
-offset_right = -16
-offset_bottom = -16
+offset_right = 600
+offset_bottom = 40
+text = "STATUS: connecting..."
 mouse_filter = 2
 
-[node name="StatusLabel" type="Label" parent="Container"]
-anchor_right = 1.0
-text = "STATUS: connecting..."
+[node name="ScoreboardLabel" type="RichTextLabel" parent="."]
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -240
+offset_top = 12
+offset_right = 240
+offset_bottom = 48
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+text = "[center][color=#4db2ff]BLUE 0[/color]    —    [color=#ff5050]RED 0[/color][/center]"
+mouse_filter = 2
 
-[node name="HpLabel" type="Label" parent="Container"]
+[node name="HpLabel" type="Label" parent="."]
 anchor_top = 1.0
-anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 196
-offset_top = -40
-text = "HP: --"
-
-[node name="IdLabel" type="Label" parent="Container"]
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 196
-offset_top = -20
-text = "Player: --"
-
-[node name="AmmoLabel" type="Label" parent="Container"]
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -220
+offset_left = 16
 offset_top = -56
-offset_right = -20
+offset_right = 400
 offset_bottom = -36
+text = "HP: --"
+mouse_filter = 2
+
+[node name="IdLabel" type="Label" parent="."]
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16
+offset_top = -32
+offset_right = 400
+offset_bottom = -12
+text = "Player: --"
+mouse_filter = 2
+
+[node name="AmmoLabel" type="Label" parent="."]
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -220
+offset_top = 18
+offset_right = -20
+offset_bottom = 40
 horizontal_alignment = 2
 text = "AP x --"
+mouse_filter = 2
 
-[node name="ReloadBar" type="ProgressBar" parent="Container"]
+[node name="ReloadBar" type="ProgressBar" parent="."]
 anchor_left = 1.0
-anchor_top = 1.0
 anchor_right = 1.0
-anchor_bottom = 1.0
 offset_left = -220
-offset_top = -30
+offset_top = 46
 offset_right = -20
-offset_bottom = -10
+offset_bottom = 66
 min_value = 0.0
 max_value = 1.0
 step = 0.01
 show_percentage = false
+mouse_filter = 2
 
 [node name="Radar" type="Control" parent="."]
 anchor_top = 1.0

@@ -57,6 +57,8 @@ class ConnectAck:
 
 # ---- InputMsg (client → server, 20 Hz) ----
 # Named InputMsg (not Input) because Godot's built-in `Input` singleton collides.
+# Carries client-authoritative pos/yaw so the server can trust them (we dropped
+# server→client reconciliation to eliminate collision-shake — see prediction.gd).
 class InputMsg:
     var tick: int = 0
     var move_forward: float = 0.0    # -1..1
@@ -64,6 +66,8 @@ class InputMsg:
     var turret_yaw: float = 0.0      # radians
     var gun_pitch: float = 0.0       # radians
     var fire_pressed: bool = false
+    var pos: Vector3 = Vector3.ZERO  # client-authoritative position
+    var yaw: float = 0.0             # client-authoritative body yaw
 
     func encode() -> PackedByteArray:
         var buf := PackedByteArray()
@@ -73,6 +77,8 @@ class InputMsg:
         Codec.write_f32(buf, turret_yaw)
         Codec.write_f32(buf, gun_pitch)
         Codec.write_u8(buf, 1 if fire_pressed else 0)
+        Codec.write_vec3(buf, pos)
+        Codec.write_f32(buf, yaw)
         return buf
 
     static func decode(buf: PackedByteArray) -> InputMsg:
@@ -84,6 +90,8 @@ class InputMsg:
         m.turret_yaw = Codec.read_f32(buf, c)
         m.gun_pitch = Codec.read_f32(buf, c)
         m.fire_pressed = Codec.read_u8(buf, c) != 0
+        m.pos = Codec.read_vec3(buf, c)
+        m.yaw = Codec.read_f32(buf, c)
         return m
 
 # ---- Snapshot (server → client) ----
@@ -102,6 +110,8 @@ class TankSnapshot:
 class Snapshot:
     var tick: int = 0
     var tanks: Array = []  # Array[TankSnapshot]
+    var team_kills_0: int = 0
+    var team_kills_1: int = 0
 
     func add_tank(pid: int, team: int, pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int, last_input_tick: int = 0, ammo: int = 0, reload_remaining: float = 0.0) -> void:
         var t := TankSnapshot.new()
@@ -132,6 +142,8 @@ class Snapshot:
             Codec.write_u32(buf, t.last_input_tick)
             Codec.write_u8(buf, t.ammo)
             Codec.write_f32(buf, t.reload_remaining)
+        Codec.write_u16(buf, team_kills_0)
+        Codec.write_u16(buf, team_kills_1)
         return buf
 
     static func decode(buf: PackedByteArray) -> Snapshot:
@@ -152,6 +164,8 @@ class Snapshot:
             t.ammo = Codec.read_u8(buf, c)
             t.reload_remaining = Codec.read_f32(buf, c)
             m.tanks.append(t)
+        m.team_kills_0 = Codec.read_u16(buf, c)
+        m.team_kills_1 = Codec.read_u16(buf, c)
         return m
 
 # ---- Fire (client → server) ----

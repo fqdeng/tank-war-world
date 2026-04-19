@@ -17,6 +17,7 @@ const TankState = preload("res://shared/tank/tank_state.gd")
 const ScopeCam = preload("res://client/camera/scope_cam.gd")
 const ScopeOverlay = preload("res://client/hud/scope_overlay.tscn")
 const TerrainGenerator = preload("res://shared/world/terrain_generator.gd")
+const SoundBank = preload("res://client/audio/sound_bank.gd")
 
 @export var server_url: String = "ws://localhost:8910"
 
@@ -34,6 +35,9 @@ var _remote_interp: Dictionary = {}  # player_id → Interpolation
 var _scope_cam
 var _scope_overlay
 var _in_scope: bool = false
+# Shared AudioStreamWAVs so we don't regenerate per-shot.
+var _fire_stream: AudioStreamWAV
+var _hit_stream: AudioStreamWAV
 
 func _ready() -> void:
     print("[Client] Connecting to %s" % server_url)
@@ -65,6 +69,12 @@ func _ready() -> void:
     _camera = ThirdPersonCam.new()
     add_child(_camera)
     _camera.current = true
+    # Keep the audio listener pinned to the third-person camera. Without this,
+    # Godot uses whichever Camera3D is .current, so entering scope (barrel-
+    # mounted cam) slams every sound source right against the ear.
+    var listener := AudioListener3D.new()
+    _camera.add_child(listener)
+    listener.make_current()
 
     _input = TankInput.new()
     add_child(_input)
@@ -75,6 +85,9 @@ func _ready() -> void:
     add_child(_hud)
     _scope_overlay = ScopeOverlay.instantiate()
     add_child(_scope_overlay)
+
+    _fire_stream = SoundBank.make_fire_shot()
+    _hit_stream = SoundBank.make_hit_clang()
 
 func _on_connected() -> void:
     print("[Client] WebSocket connected. Sending CONNECT.")
@@ -104,6 +117,8 @@ func _on_message(msg_type: int, payload: PackedByteArray) -> void:
         MessageType.OBSTACLE_DESTROYED:
             var od = Messages.ObstacleDestroyed.decode(payload)
             _obstacle_builder.destroy_obstacle(od.obstacle_id)
+            if _prediction:
+                _prediction.mark_obstacle_destroyed(od.obstacle_id)
 
 func _handle_connect_ack(msg) -> void:
     _my_player_id = msg.player_id
@@ -123,12 +138,15 @@ func _handle_connect_ack(msg) -> void:
     _prediction = Prediction.new()
     add_child(_prediction)
     _prediction.initialize(ls, _terrain_builder.heightmap, _terrain_builder.terrain_size)
+    _prediction.set_obstacles(_obstacle_builder.obstacles, _obstacle_builder.destroyed_ids)
     _input.set_enabled(true)
     _hud.set_status("CONNECTED")
     _hud.set_player_id(msg.player_id)
     _hud.radar.set_my_team(msg.team)
 
 func _handle_snapshot(msg) -> void:
+    if _hud != null:
+        _hud.set_team_kills(msg.team_kills_0, msg.team_kills_1)
     var now_ms: int = Time.get_ticks_msec()
     var seen: Dictionary = {}
     for t in msg.tanks:
@@ -253,6 +271,7 @@ func _handle_shell_spawned(msg) -> void:
     holder.set_meta("start_ms", Time.get_ticks_msec())
     add_child(holder)
     _shells[msg.shell_id] = holder
+    _play_oneshot_3d(_fire_stream, msg.origin, 4.0, 280.0)
 
 func _handle_hit(msg) -> void:
     if msg.victim_id != 0 and _tanks.has(msg.victim_id):
@@ -261,6 +280,20 @@ func _handle_hit(msg) -> void:
         _shells[msg.shell_id].queue_free()
         _shells.erase(msg.shell_id)
     _spawn_impact_puff(msg.hit_point)
+    _play_oneshot_3d(_hit_stream, msg.hit_point, 2.0, 200.0)
+
+# Spawns a temporary AudioStreamPlayer3D at `pos`, plays once, frees itself.
+func _play_oneshot_3d(stream: AudioStreamWAV, pos: Vector3, unit_size: float, max_dist: float) -> void:
+    if stream == null:
+        return
+    var p := AudioStreamPlayer3D.new()
+    p.stream = stream
+    p.unit_size = unit_size
+    p.max_distance = max_dist
+    p.position = pos
+    add_child(p)
+    p.play()
+    p.finished.connect(p.queue_free)
 
 func _handle_death(msg) -> void:
     if _tanks.has(msg.victim_id):
@@ -271,6 +304,8 @@ func _handle_death(msg) -> void:
 func _handle_respawn(msg) -> void:
     if msg.player_id == _my_player_id:
         _hud.set_status("CONNECTED")
+        if _prediction != null:
+            _prediction.teleport(msg.pos)
     if _tanks.has(msg.player_id):
         _tanks[msg.player_id].set_dead(false)
 
@@ -280,11 +315,8 @@ func _physics_process(delta: float) -> void:
     var inp = _input.build_input_message()
     var tick: int = Engine.get_physics_frames()
     inp.tick = tick
-    _ws.send(MessageType.INPUT, inp.encode())
-    if _input.consume_fire():
-        var fire := Messages.Fire.new()
-        fire.tick = tick
-        _ws.send(MessageType.FIRE, fire.encode())
+    # Step prediction BEFORE packing the message so the server gets this tick's
+    # authoritative pos/yaw, not last tick's.
     if _prediction != null:
         var d := {
             "move_forward": inp.move_forward,
@@ -294,6 +326,14 @@ func _physics_process(delta: float) -> void:
             "fire_pressed": inp.fire_pressed,
         }
         _prediction.apply_local(d, tick, delta)
+        var ps = _prediction.state()
+        inp.pos = ps.pos
+        inp.yaw = ps.yaw
+    _ws.send(MessageType.INPUT, inp.encode())
+    if _input.consume_fire():
+        var fire := Messages.Fire.new()
+        fire.tick = tick
+        _ws.send(MessageType.FIRE, fire.encode())
 
 func _spawn_impact_puff(pos: Vector3) -> void:
     var mesh := MeshInstance3D.new()

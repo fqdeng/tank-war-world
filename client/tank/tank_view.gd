@@ -2,6 +2,7 @@
 extends Node3D
 
 const TerrainGenerator = preload("res://shared/world/terrain_generator.gd")
+const SoundBank = preload("res://client/audio/sound_bank.gd")
 
 var player_id: int = 0
 var team: int = 0
@@ -16,8 +17,10 @@ var _turret: Node3D
 var _barrel: Node3D
 var _hp: int = 0
 var _dust: CPUParticles3D
+var _engine: AudioStreamPlayer3D
 var _prev_pos: Vector3 = Vector3.ZERO
 var _has_prev_pos: bool = false
+var _engine_speed: float = 0.0  # smoothed horizontal speed for pitch/volume
 
 # Smoothing targets — snapshot updates these; _process lerps visuals toward them.
 # Plan 03 will replace this with proper buffered interpolation.
@@ -99,6 +102,15 @@ func _build_mesh() -> void:
     _dust.mesh = dust_mesh
     add_child(_dust)
 
+    _engine = AudioStreamPlayer3D.new()
+    _engine.stream = SoundBank.make_engine_loop()
+    _engine.unit_size = 14.0
+    _engine.max_distance = 120.0
+    _engine.autoplay = true
+    _engine.volume_db = -12.0
+    _engine.pitch_scale = 0.9
+    add_child(_engine)
+
 func apply_snapshot(pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int) -> void:
     _target_pos = pos
     _target_yaw = yaw
@@ -137,6 +149,9 @@ func _process(delta: float) -> void:
 func barrel_node() -> Node3D:
     return _barrel
 
+func turret_local_yaw() -> float:
+    return _turret.rotation.y if _turret else 0.0
+
 func apply_predicted(pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int) -> void:
     # Used for local tank: skip lerp/interp, render prediction result directly.
     _update_dust(pos)
@@ -164,6 +179,12 @@ func _update_dust(new_pos: Vector3) -> void:
     var horiz_speed: float = sqrt(dx * dx + dz * dz) / dt
     _prev_pos = new_pos
     _dust.emitting = horiz_speed > 1.0
+    # Low-pass to keep pitch/volume from flickering with per-frame jitter.
+    _engine_speed = lerp(_engine_speed, horiz_speed, clamp(dt * 8.0, 0.0, 1.0))
+    if _engine:
+        var s: float = clamp(_engine_speed / 18.0, 0.0, 1.2)
+        _engine.pitch_scale = 0.75 + s * 0.85
+        _engine.volume_db = lerp(-18.0, -3.0, clamp(s, 0.0, 1.0))
 
 func flash_hit() -> void:
     if _body_mesh == null:

@@ -5,19 +5,23 @@ const ObstaclePlacer = preload("res://shared/world/obstacle_placer.gd")
 
 # obstacle_id → Node3D (only for currently-alive obstacles)
 var _nodes: Dictionary = {}
+# Full obstacle list (alive + destroyed) so collision code can query positions
+# even after visual nodes are gone.
+var obstacles: Array = []
+var destroyed_ids: Dictionary = {}
 
 func build(world_seed: int, heightmap: PackedFloat32Array, terrain_size: int, already_destroyed: PackedInt32Array = PackedInt32Array()) -> void:
-    var destroyed: Dictionary = {}
+    destroyed_ids = {}
     for oid in already_destroyed:
-        destroyed[oid] = true
-    var obs := ObstaclePlacer.place(
+        destroyed_ids[oid] = true
+    obstacles = ObstaclePlacer.place(
         world_seed, heightmap, terrain_size,
         Constants.SMALL_ROCK_COUNT,
         Constants.LARGE_ROCK_COUNT,
         Constants.TREE_COUNT,
     )
-    for o in obs:
-        if destroyed.has(o.id):
+    for o in obstacles:
+        if destroyed_ids.has(o.id):
             continue
         var node := _make_node(o)
         node.position = o.pos
@@ -26,6 +30,7 @@ func build(world_seed: int, heightmap: PackedFloat32Array, terrain_size: int, al
         _nodes[o.id] = node
 
 func destroy_obstacle(id: int) -> void:
+    destroyed_ids[id] = true
     if not _nodes.has(id):
         return
     var node: Node3D = _nodes[id]

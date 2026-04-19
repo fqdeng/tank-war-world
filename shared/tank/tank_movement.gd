@@ -44,7 +44,13 @@ static func step(state: TankState, input: Dictionary, dt: float) -> void:
     state.speed = clamp(state.speed, -max_speed * 0.5, max_speed)
 
     var turn_speed: float = deg_to_rad(Constants.TANK_TURN_RATE_DPS)
-    state.yaw += turn * turn_speed * dt
+    # When actually reversing (moving backward, not just braking), invert A/D so
+    # steering matches the driver's perspective of where the rear is going —
+    # same convention as cars/tanks in most driving games.
+    var steering_turn: float = turn
+    if state.speed < -0.1:
+        steering_turn = -steering_turn
+    state.yaw += steering_turn * turn_speed * dt
 
     var forward_dir := Vector3(-sin(state.yaw), 0.0, -cos(state.yaw))
     state.pos += forward_dir * state.speed * dt
