@@ -19,7 +19,7 @@ const ScopeOverlay = preload("res://client/hud/scope_overlay.tscn")
 const TerrainGenerator = preload("res://shared/world/terrain_generator.gd")
 const SoundBank = preload("res://client/audio/sound_bank.gd")
 
-@export var server_url: String = "ws://localhost:8910"
+@export var server_url: String = "ws://cn.flz.cc:8910"
 
 var _ws
 var _terrain_builder
@@ -97,14 +97,13 @@ func _ready() -> void:
     _hit_stream = SoundBank.make_hit_clang()
     _tank_hit_stream = SoundBank.make_tank_hit_thud()
 
-# Under HTML5, derive the WebSocket endpoint from the page's own URL so the same
-# bundle works on any host without a rebuild. `wss` is required when the page is
-# served over https (mixed-content rule).
+# Under HTML5 the server endpoint is fixed to cn.flz.cc:8910. `wss` is required
+# when the page is served over https (browser mixed-content rule); assume the
+# deploy has a TLS-terminating proxy in that case.
 func _derive_web_server_url() -> String:
-    var host: String = str(JavaScriptBridge.eval("location.hostname"))
     var proto: String = str(JavaScriptBridge.eval("location.protocol"))
     var scheme: String = "wss" if proto == "https:" else "ws"
-    return "%s://%s:%d" % [scheme, host, Constants.SERVER_PORT]
+    return "%s://cn.flz.cc:8910" % scheme
 
 func _on_connected() -> void:
     print("[Client] WebSocket connected. Sending CONNECT.")
