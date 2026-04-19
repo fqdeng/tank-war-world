@@ -396,6 +396,11 @@ func _physics_process(delta: float) -> void:
     if _input.consume_fire():
         var fire := Messages.Fire.new()
         fire.tick = tick
+        if _prediction != null:
+            var ps = _prediction.state()
+            var spawn: Dictionary = Ballistics.compute_shell_spawn(ps.pos, ps.yaw, ps.turret_yaw, ps.gun_pitch)
+            fire.origin = spawn["origin"]
+            fire.velocity = spawn["velocity"]
         _ws.send(MessageType.FIRE, fire.encode())
 
 func _spawn_impact_puff(pos: Vector3) -> void:

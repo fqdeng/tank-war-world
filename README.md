@@ -11,6 +11,7 @@ Multiplayer tank shooter built with Godot 4.6. The server is an authoritative si
 - **Godot 4.6.2** — `/Applications/Godot.app` on macOS, or the `godot` binary in `PATH`.
 - **Web export templates** for 4.6.2 — only needed to build the web client. Install via *Editor → Manage Export Templates → Download and Install* (≈ 700 MB). Templates land in `~/Library/Application Support/Godot/export_templates/4.6.2.stable/`.
 - **Python 3** — only to serve the exported web files locally.
+- **fonttools / `pyftsubset`** — required before every web build to subset the CJK font (see §3a). Install with `uv tool install fonttools --with brotli`, or `pip install fonttools brotli`.
 
 The examples below use the full macOS path to the Godot binary; substitute `godot` if you have it on `PATH`.
 
@@ -51,7 +52,18 @@ Defaults to `ws://localhost:8910`. Override with `--` export arg if you want ano
 
 ## 3. Web client
 
-### 3a. Export the bundle (one-time, or after every client code change)
+### 3a. Subset the CJK font (run before every build)
+
+`client/assets/fonts/NotoSansSC-Regular.otf` is the full Noto Sans SC (~8 MB). The script below strips it down to only the glyphs the UI actually renders (~68 KB, ≈ 99 % smaller) — a huge win for web download size. Re-run it before every web export so the bundle picks up the subset font, and any time you add new Chinese text to a `Label` / `RichTextLabel`.
+
+```bash
+cd /path/to/tank-war-world
+tools/subset_font.sh
+```
+
+If you added new Chinese characters to the client UI, append them to `SUBSET_CJK_TEXT` in `tools/subset_font.sh` before running.
+
+### 3b. Export the bundle (one-time, or after every client code change)
 
 ```bash
 cd /path/to/tank-war-world
@@ -61,7 +73,7 @@ cd /path/to/tank-war-world
 
 Produces `build/web/{index.html, index.pck, index.wasm, index.js, index.audio.worklet.js}`. The preset (`export_presets.cfg`) excludes `server/`, `tests/`, `docs/`, and the GUT plugin from the bundle.
 
-### 3b. Serve the bundle
+### 3c. Serve the bundle
 
 Browsers can't load `.wasm` from `file://`. Start a local HTTP server:
 
@@ -69,7 +81,7 @@ Browsers can't load `.wasm` from `file://`. Start a local HTTP server:
 python3 -m http.server --directory build/web 8000
 ```
 
-### 3c. Open the game
+### 3d. Open the game
 
 ```
 http://localhost:8000/

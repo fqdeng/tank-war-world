@@ -182,36 +182,26 @@ func _on_input_received(peer_id: int, input_msg) -> void:
         "has_client_pose": true,
     }
 
-func _on_fire_received(peer_id: int, _fire_msg) -> void:
+func _on_fire_received(peer_id: int, fire_msg) -> void:
     var pid: int = _ws_server.player_id_for_peer(peer_id)
     if pid == 0 or not _world.tanks.has(pid):
         return
-    var state = _world.tanks[pid]
-    var latest_inp: Dictionary = _latest_input.get(pid, {})
-    # Adopt client pose for the shot so the shell originates exactly where the
-    # client drew the barrel (avoids shells spawning at the server's lagged pos).
-    if not state.is_ai and latest_inp.get("has_client_pose", false):
-        state.pos = latest_inp["pos"]
-        state.yaw = float(latest_inp["yaw"])
-    var aim_turret_yaw: float = float(latest_inp.get("turret_yaw", state.turret_yaw))
-    var aim_gun_pitch: float = float(latest_inp.get("gun_pitch", state.gun_pitch))
-    _spawn_shell(pid, state, aim_turret_yaw, aim_gun_pitch)
+    # No server validation — the client is fully authoritative for shell
+    # spawning (origin, velocity, and fire rate). The server just simulates
+    # the trajectory and broadcasts the spawn so everyone sees the same shell.
+    _broadcast_shell_spawn(pid, fire_msg.origin, fire_msg.velocity)
 
-# Shared shell spawn (used by real players and AI).
-# Origin is computed from the same tank→turret→barrel rig the client renders,
-# so the shell emerges exactly on the scope crosshair's forward ray.
+# AI fire path: still server-authoritative (checks can_fire, applies reload,
+# derives origin/velocity from server state). Humans go through
+# _on_fire_received which trusts client-supplied data verbatim.
 func _spawn_shell(shooter_id: int, state, aim_turret_yaw: float, aim_gun_pitch: float) -> void:
     if not state.can_fire():
         return
     state.reload_remaining = Constants.TANK_RELOAD_S
-    var tank_xf := Transform3D(Basis().rotated(Vector3.UP, state.yaw), state.pos)
-    var turret_local := Transform3D(Basis().rotated(Vector3.UP, aim_turret_yaw), Vector3(0, 1.4, 0))
-    var barrel_local := Transform3D(Basis().rotated(Vector3.RIGHT, aim_gun_pitch), Vector3(0, 0, -1.1))
-    var barrel_xf: Transform3D = tank_xf * turret_local * barrel_local
-    var scope_pos: Vector3 = barrel_xf * Vector3(0, 0.2, -1.0)
-    var forward: Vector3 = -barrel_xf.basis.z
-    var origin: Vector3 = scope_pos + forward * 0.6
-    var velocity: Vector3 = forward * Constants.SHELL_INITIAL_SPEED
+    var spawn: Dictionary = Ballistics.compute_shell_spawn(state.pos, state.yaw, aim_turret_yaw, aim_gun_pitch)
+    _broadcast_shell_spawn(shooter_id, spawn["origin"], spawn["velocity"])
+
+func _broadcast_shell_spawn(shooter_id: int, origin: Vector3, velocity: Vector3) -> void:
     var shell = _shell_sim.spawn(shooter_id, origin, velocity)
     var msg := Messages.ShellSpawned.new()
     msg.shell_id = shell.id

@@ -173,18 +173,27 @@ class Snapshot:
         return m
 
 # ---- Fire (client → server) ----
+# Shell data is authoritative to the client: server no longer validates rate,
+# ammo, or re-derives origin/velocity — it trusts whatever the client sends
+# and only runs hit detection on the trajectory.
 class Fire:
     var tick: int = 0
+    var origin: Vector3 = Vector3.ZERO
+    var velocity: Vector3 = Vector3.ZERO
 
     func encode() -> PackedByteArray:
         var buf := PackedByteArray()
         Codec.write_u32(buf, tick)
+        Codec.write_vec3(buf, origin)
+        Codec.write_vec3(buf, velocity)
         return buf
 
     static func decode(buf: PackedByteArray) -> Fire:
         var m := Fire.new()
         var c := [0]
         m.tick = Codec.read_u32(buf, c)
+        m.origin = Codec.read_vec3(buf, c)
+        m.velocity = Codec.read_vec3(buf, c)
         return m
 
 # ---- ShellSpawned (server → all clients) ----

@@ -73,9 +73,14 @@ func test_snapshot_roundtrip_multiple_tanks() -> void:
 func test_fire_roundtrip() -> void:
     var msg := Messages.Fire.new()
     msg.tick = 100
+    msg.origin = Vector3(10, 2, -5)
+    msg.velocity = Vector3(0, 5, -160)
     var bytes := msg.encode()
     var decoded := Messages.Fire.decode(bytes)
     assert_eq(decoded.tick, 100)
+    assert_almost_eq(decoded.origin.x, 10.0, 0.001)
+    assert_almost_eq(decoded.origin.z, -5.0, 0.001)
+    assert_almost_eq(decoded.velocity.z, -160.0, 0.001)
 
 func test_hit_roundtrip() -> void:
     var msg := Messages.Hit.new()
