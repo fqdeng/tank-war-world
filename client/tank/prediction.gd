@@ -43,6 +43,8 @@ func apply_local(input: Dictionary, tick: int, dt: float) -> void:
         _state.pos.y = TerrainGenerator.sample_height(_heightmap, _terrain_size, _state.pos.x, _state.pos.z)
     _state.turret_yaw = float(input.get("turret_yaw", _state.turret_yaw))
     _state.gun_pitch = float(input.get("gun_pitch", _state.gun_pitch))
+    if _state.reload_remaining > 0.0:
+        _state.reload_remaining = max(0.0, _state.reload_remaining - dt)
     _input_history.append({"tick": tick, "input": input.duplicate(), "dt": dt})
     while _input_history.size() > 60:
         _input_history.pop_front()
@@ -62,13 +64,16 @@ func _apply_collision() -> void:
         if push.length_squared() > 0.0001:
             _state.speed = 0.0
 
-# On snapshot: sync only server-authoritative fields (hp, ammo, reload).
+# On snapshot: sync only server-authoritative fields (hp, ammo).
 # Position/yaw/turret are client-authoritative — the server no longer corrects
 # them, because its 20Hz corrections produced visible body/camera shake on
-# collisions. Respawns come through _handle_respawn → teleport() instead.
+# collisions. Reload is also client-authoritative now (client sets it on fire
+# and ticks it down locally) since _on_fire_received trusts client-supplied
+# shell data verbatim and no longer stamps reload_remaining on the server.
+# Respawns come through _handle_respawn → teleport() instead.
 func reconcile(_server_pos: Vector3, _server_yaw: float, _server_turret_yaw: float,
         _server_gun_pitch: float, server_hp: int, acked_tick: int,
-        server_ammo: int = -1, server_reload: float = -1.0) -> void:
+        server_ammo: int = -1, _server_reload: float = -1.0) -> void:
     if _state == null:
         return
     while _input_history.size() > 0 and int(_input_history[0]["tick"]) <= acked_tick:
@@ -76,8 +81,6 @@ func reconcile(_server_pos: Vector3, _server_yaw: float, _server_turret_yaw: flo
     _state.hp = server_hp
     if server_ammo >= 0:
         _state.ammo = server_ammo
-    if server_reload >= 0.0:
-        _state.reload_remaining = server_reload
 
 # Hard teleport used on respawn — the only path that overwrites local pos now.
 func teleport(pos: Vector3) -> void:

@@ -394,14 +394,21 @@ func _physics_process(delta: float) -> void:
         inp.yaw = ps.yaw
     _ws.send(MessageType.INPUT, inp.encode())
     if _input.consume_fire():
-        var fire := Messages.Fire.new()
-        fire.tick = tick
-        if _prediction != null:
-            var ps = _prediction.state()
-            var spawn: Dictionary = Ballistics.compute_shell_spawn(ps.pos, ps.yaw, ps.turret_yaw, ps.gun_pitch)
-            fire.origin = spawn["origin"]
-            fire.velocity = spawn["velocity"]
-        _ws.send(MessageType.FIRE, fire.encode())
+        # Reload is enforced on the client now that firing is client-authoritative;
+        # the server no longer stamps reload_remaining on FIRE for humans. Drop the
+        # shot silently if we're still reloading so rapid-click doesn't skip the gate.
+        if _prediction != null and _prediction.state().reload_remaining > 0.0:
+            pass
+        else:
+            var fire := Messages.Fire.new()
+            fire.tick = tick
+            if _prediction != null:
+                var ps = _prediction.state()
+                var spawn: Dictionary = Ballistics.compute_shell_spawn(ps.pos, ps.yaw, ps.turret_yaw, ps.gun_pitch)
+                fire.origin = spawn["origin"]
+                fire.velocity = spawn["velocity"]
+                _prediction.state().reload_remaining = Constants.TANK_RELOAD_S
+            _ws.send(MessageType.FIRE, fire.encode())
 
 func _spawn_impact_puff(pos: Vector3) -> void:
     var mesh := MeshInstance3D.new()
