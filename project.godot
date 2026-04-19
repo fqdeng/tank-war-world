@@ -22,6 +22,9 @@ Constants="*res://common/constants.gd"
 [display]
 
 window/size/mode=3
+window/size/mode.web=0
+window/size/viewport_width.web=5120
+window/size/viewport_height.web=2880
 
 [gui]
 
