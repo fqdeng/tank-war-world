@@ -13,6 +13,19 @@ var _repath_timer: float = 0.0
 var _fire_cooldown: float = 0.0
 var _rng := RandomNumberGenerator.new()
 
+# Stuck-detection: if we're commanding forward motion but measured speed stays
+# below STUCK_SPEED_THRESHOLD for STUCK_TRIGGER_S, we're pinned against a tree/
+# rock. Pick a new waypoint and reverse for UNSTICK_REVERSE_S while veering
+# to break free.
+var _stuck_timer: float = 0.0
+var _unstick_timer: float = 0.0
+var _unstick_turn_sign: float = 1.0
+var _prev_pos: Vector3 = Vector3.ZERO
+var _has_prev_pos: bool = false
+const STUCK_SPEED_THRESHOLD: float = 2.5
+const STUCK_TRIGGER_S: float = 1.2
+const UNSTICK_REVERSE_S: float = 0.9
+
 # Cap how fast AI can traverse the turret / elevate the gun so it can't snap
 # onto a target in one tick. Before this, the brain set turret_yaw directly to
 # the target bearing each tick → effectively instant aimbot.
@@ -27,16 +40,49 @@ func setup(pid: int, world) -> void:
 func step(state: TankState, world, dt: float) -> Dictionary:
     _repath_timer -= dt
     _fire_cooldown -= dt
-    var to_wp: Vector3 = _waypoint - state.pos
-    to_wp.y = 0.0
-    if to_wp.length() < 20.0 or _repath_timer <= 0.0:
-        _pick_new_waypoint(world)
-        to_wp = _waypoint - state.pos
+    _unstick_timer = max(0.0, _unstick_timer - dt)
+
+    # Measure actual movement so we can detect when we're wedged against an
+    # obstacle (TankCollision pushes us out every tick, so commanded forward
+    # motion translates to zero real displacement).
+    var actual_speed: float = 0.0
+    if _has_prev_pos:
+        actual_speed = (state.pos - _prev_pos).length() / max(dt, 0.0001)
+    _prev_pos = state.pos
+    _has_prev_pos = true
+
+    var move_forward: float = 0.0
+    var move_turn: float = 0.0
+
+    if _unstick_timer > 0.0:
+        # Backing away from whatever we were stuck on. Veering while reversing
+        # makes the tank rotate off the obstacle instead of hitting it again.
+        move_forward = -1.0
+        move_turn = _unstick_turn_sign
+    else:
+        var to_wp: Vector3 = _waypoint - state.pos
         to_wp.y = 0.0
-    var desired_yaw: float = atan2(-to_wp.x, -to_wp.z)
-    var yaw_err: float = wrapf(desired_yaw - state.yaw, -PI, PI)
-    var move_turn: float = clamp(yaw_err / 0.4, -1.0, 1.0)
-    var move_forward: float = 1.0 if abs(yaw_err) < 1.2 else 0.0
+        if to_wp.length() < 20.0 or _repath_timer <= 0.0:
+            _pick_new_waypoint(world)
+            to_wp = _waypoint - state.pos
+            to_wp.y = 0.0
+        var desired_yaw: float = atan2(-to_wp.x, -to_wp.z)
+        var yaw_err: float = wrapf(desired_yaw - state.yaw, -PI, PI)
+        move_turn = clamp(yaw_err / 0.4, -1.0, 1.0)
+        move_forward = 1.0 if abs(yaw_err) < 1.2 else 0.0
+
+        # Stuck check: commanded forward motion but barely any real displacement.
+        if move_forward > 0.5 and actual_speed < STUCK_SPEED_THRESHOLD:
+            _stuck_timer += dt
+        else:
+            _stuck_timer = 0.0
+        if _stuck_timer >= STUCK_TRIGGER_S:
+            _stuck_timer = 0.0
+            _unstick_timer = UNSTICK_REVERSE_S
+            _unstick_turn_sign = 1.0 if _rng.randf() > 0.5 else -1.0
+            _pick_new_waypoint(world)
+            move_forward = -1.0
+            move_turn = _unstick_turn_sign
 
     # Engage nearest enemy ONLY if line-of-sight is not blocked by an obstacle.
     # Turret/gun slew toward the desired bearing at a capped rate so aim feels
