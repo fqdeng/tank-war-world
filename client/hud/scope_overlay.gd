@@ -118,9 +118,12 @@ func _draw() -> void:
         draw_string(font, Vector2(cx + dw + 6, dy + 4), "%dm" % d, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, yellow)
 
 # Pixel drop below the crosshair for a given range in meters. Quadratic fit
-# anchored on the original 400/600/800 calibration.
+# was hand-calibrated at v=200 m/s. Drop angle scales as ~1/v² for shallow
+# shots, so rescale if shell speed ever changes.
 func _drop_y_for(d: float) -> float:
-    return 0.000125 * d * d + 0.175 * d - 10.0
+    var base: float = 0.000125 * d * d + 0.175 * d - 10.0
+    var speed_scale: float = 40000.0 / (Constants.SHELL_INITIAL_SPEED * Constants.SHELL_INITIAL_SPEED)
+    return base * speed_scale
 
 # Fills the four screen corners outside the inscribed circle with solid black
 # so the optic reads as a round window. Each polygon: screen corner → edge

@@ -32,6 +32,17 @@ const UNSTICK_REVERSE_S: float = 0.9
 const AI_TURRET_SLEW_DPS: float = 55.0
 const AI_PITCH_SLEW_DPS: float = 30.0
 
+# Aim-error model: AI doesn't solve ballistics perfectly. When it acquires a
+# target, it rolls a yaw + pitch bias; each shot at the same target shrinks
+# the bias by AI_ERR_DECAY, simulating a human "ranging in" over 3-5 shots.
+# Switching targets re-rolls the full error.
+const AI_INITIAL_YAW_ERR: float = 0.045   # ~2.6° lateral
+const AI_INITIAL_PITCH_ERR: float = 0.060 # ~3.4° elevation (range estimation is harder)
+const AI_ERR_DECAY: float = 0.55
+var _current_target_id: int = 0
+var _aim_yaw_error: float = 0.0
+var _aim_pitch_error: float = 0.0
+
 func setup(pid: int, world) -> void:
     _player_id = pid
     _rng.seed = hash(pid) + int(Time.get_ticks_msec())
@@ -92,21 +103,33 @@ func step(state: TankState, world, dt: float) -> Dictionary:
     var gun_pitch: float = state.gun_pitch
     var fire_pressed: bool = false
     if target_id != 0:
+        # Re-roll aim bias on target switch; shrink it each shot at the same
+        # target (next-shot adjustment). First shot on a new target lands
+        # several degrees off; successive shots tighten up.
+        if target_id != _current_target_id:
+            _current_target_id = target_id
+            _aim_yaw_error = _rng.randf_range(-AI_INITIAL_YAW_ERR, AI_INITIAL_YAW_ERR)
+            _aim_pitch_error = _rng.randf_range(-AI_INITIAL_PITCH_ERR, AI_INITIAL_PITCH_ERR)
         var target = world.tanks[target_id]
         var to_t: Vector3 = target.pos - state.pos
         var horiz_dist: float = sqrt(to_t.x * to_t.x + to_t.z * to_t.z)
         var world_turret_yaw: float = atan2(-to_t.x, -to_t.z)
-        var desired_turret_yaw: float = wrapf(world_turret_yaw - state.yaw, -PI, PI)
+        var desired_turret_yaw: float = wrapf(world_turret_yaw - state.yaw + _aim_yaw_error, -PI, PI)
         var max_dyaw: float = deg_to_rad(AI_TURRET_SLEW_DPS) * dt
         var yaw_delta: float = clamp(wrapf(desired_turret_yaw - state.turret_yaw, -PI, PI), -max_dyaw, max_dyaw)
         turret_yaw = state.turret_yaw + yaw_delta
-        var desired_pitch: float = clamp(_estimate_pitch(horiz_dist, to_t.y), deg_to_rad(-8.0), deg_to_rad(12.0))
+        var desired_pitch: float = clamp(_estimate_pitch(horiz_dist, to_t.y) + _aim_pitch_error, deg_to_rad(-8.0), deg_to_rad(12.0))
         var max_dpitch: float = deg_to_rad(AI_PITCH_SLEW_DPS) * dt
         gun_pitch = state.gun_pitch + clamp(desired_pitch - state.gun_pitch, -max_dpitch, max_dpitch)
         var aim_err: float = abs(wrapf(desired_turret_yaw - turret_yaw, -PI, PI))
         if aim_err < 0.04 and _fire_cooldown <= 0.0:
             fire_pressed = true
             _fire_cooldown = Constants.TANK_RELOAD_S + _rng.randf_range(1.2, 2.5)
+            # "Ranging in" — next shot at the same target is more accurate.
+            _aim_yaw_error *= AI_ERR_DECAY
+            _aim_pitch_error *= AI_ERR_DECAY
+    else:
+        _current_target_id = 0
     return {
         "move_forward": move_forward,
         "move_turn": move_turn,
