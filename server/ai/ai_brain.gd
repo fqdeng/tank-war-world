@@ -32,16 +32,20 @@ const UNSTICK_REVERSE_S: float = 0.9
 const AI_TURRET_SLEW_DPS: float = 55.0
 const AI_PITCH_SLEW_DPS: float = 30.0
 
-# Aim-error model: AI doesn't solve ballistics perfectly. When it acquires a
-# target, it rolls a yaw + pitch bias; each shot at the same target shrinks
-# the bias by AI_ERR_DECAY, simulating a human "ranging in" over 3-5 shots.
-# Switching targets re-rolls the full error.
-const AI_INITIAL_YAW_ERR: float = 0.045   # ~2.6° lateral
-const AI_INITIAL_PITCH_ERR: float = 0.060 # ~3.4° elevation (range estimation is harder)
+# Aim-error model: AI doesn't solve ballistics perfectly. On target acquire
+# it rolls a unit-signed bias in [-1, 1]; applied error = bias × MAX_ERR ×
+# distance_scale, so far shots are sloppier than close ones. Each shot at the
+# same target shrinks the bias by AI_ERR_DECAY → human-like "ranging in"
+# across 3-5 rounds. Switching targets re-rolls the bias.
+const AI_MAX_YAW_ERR: float = 0.050    # ~2.9° lateral at ref range
+const AI_MAX_PITCH_ERR: float = 0.070  # ~4.0° elevation at ref range
 const AI_ERR_DECAY: float = 0.55
+const AI_ERR_REF_DIST_M: float = 300.0  # distance at which error scale = 1.0
+const AI_ERR_MIN_SCALE: float = 0.2     # close-range floor — point-blank still has tiny wobble
+const AI_ERR_MAX_SCALE: float = 1.8     # long-range ceiling — don't blow up past max engage
 var _current_target_id: int = 0
-var _aim_yaw_error: float = 0.0
-var _aim_pitch_error: float = 0.0
+var _aim_yaw_bias: float = 0.0   # unit-signed [-1, 1], scaled by distance at use time
+var _aim_pitch_bias: float = 0.0
 
 func setup(pid: int, world) -> void:
     _player_id = pid
@@ -108,17 +112,22 @@ func step(state: TankState, world, dt: float) -> Dictionary:
         # several degrees off; successive shots tighten up.
         if target_id != _current_target_id:
             _current_target_id = target_id
-            _aim_yaw_error = _rng.randf_range(-AI_INITIAL_YAW_ERR, AI_INITIAL_YAW_ERR)
-            _aim_pitch_error = _rng.randf_range(-AI_INITIAL_PITCH_ERR, AI_INITIAL_PITCH_ERR)
+            _aim_yaw_bias = _rng.randf_range(-1.0, 1.0)
+            _aim_pitch_bias = _rng.randf_range(-1.0, 1.0)
         var target = world.tanks[target_id]
         var to_t: Vector3 = target.pos - state.pos
         var horiz_dist: float = sqrt(to_t.x * to_t.x + to_t.z * to_t.z)
+        # Distance-dependent error magnitude: close-up shots land almost on
+        # target, long-range shots wander.
+        var dist_scale: float = clamp(horiz_dist / AI_ERR_REF_DIST_M, AI_ERR_MIN_SCALE, AI_ERR_MAX_SCALE)
+        var yaw_err: float = _aim_yaw_bias * AI_MAX_YAW_ERR * dist_scale
+        var pitch_err: float = _aim_pitch_bias * AI_MAX_PITCH_ERR * dist_scale
         var world_turret_yaw: float = atan2(-to_t.x, -to_t.z)
-        var desired_turret_yaw: float = wrapf(world_turret_yaw - state.yaw + _aim_yaw_error, -PI, PI)
+        var desired_turret_yaw: float = wrapf(world_turret_yaw - state.yaw + yaw_err, -PI, PI)
         var max_dyaw: float = deg_to_rad(AI_TURRET_SLEW_DPS) * dt
         var yaw_delta: float = clamp(wrapf(desired_turret_yaw - state.turret_yaw, -PI, PI), -max_dyaw, max_dyaw)
         turret_yaw = state.turret_yaw + yaw_delta
-        var desired_pitch: float = clamp(_estimate_pitch(horiz_dist, to_t.y) + _aim_pitch_error, deg_to_rad(-8.0), deg_to_rad(12.0))
+        var desired_pitch: float = clamp(_estimate_pitch(horiz_dist, to_t.y) + pitch_err, deg_to_rad(-8.0), deg_to_rad(12.0))
         var max_dpitch: float = deg_to_rad(AI_PITCH_SLEW_DPS) * dt
         gun_pitch = state.gun_pitch + clamp(desired_pitch - state.gun_pitch, -max_dpitch, max_dpitch)
         var aim_err: float = abs(wrapf(desired_turret_yaw - turret_yaw, -PI, PI))
@@ -126,8 +135,8 @@ func step(state: TankState, world, dt: float) -> Dictionary:
             fire_pressed = true
             _fire_cooldown = Constants.TANK_RELOAD_S + _rng.randf_range(1.2, 2.5)
             # "Ranging in" — next shot at the same target is more accurate.
-            _aim_yaw_error *= AI_ERR_DECAY
-            _aim_pitch_error *= AI_ERR_DECAY
+            _aim_yaw_bias *= AI_ERR_DECAY
+            _aim_pitch_bias *= AI_ERR_DECAY
     else:
         _current_target_id = 0
     return {

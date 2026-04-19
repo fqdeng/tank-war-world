@@ -75,13 +75,8 @@ func build_input_message():
         if Input.is_key_pressed(KEY_S): fwd -= 1.0
         if Input.is_key_pressed(KEY_A): turn += 1.0
         if Input.is_key_pressed(KEY_D): turn -= 1.0
-        # Camera follows turret, so when the turret aims rearward the camera sits
-        # in front of the body — W would then drive the tank toward the camera
-        # (feels like reverse). Flip WASD to camera-relative when the turret is
-        # in the rear hemisphere.
-        if cos(_turret_yaw) < 0.0:
-            fwd = -fwd
-            turn = -turn
+        # WASD is always chassis-relative: W drives toward the tank's nose
+        # regardless of which way the turret (and camera) is facing.
         m.move_forward = fwd
         m.move_turn = turn
     m.turret_yaw = _turret_yaw
