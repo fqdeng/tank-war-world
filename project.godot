@@ -26,6 +26,7 @@ window/size/mode=3
 [physics]
 
 3d/physics_engine="Jolt Physics"
+3d/physics_engine.web="GodotPhysics3D"
 common/physics_ticks_per_second=120
 
 [editor_plugins]
@@ -34,4 +35,9 @@ enabled=PackedStringArray("res://addons/gut/plugin.cfg")
 
 [rendering]
 
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.windows="forward_plus"
+renderer/rendering_method.macos="forward_plus"
+renderer/rendering_method.linuxbsd="forward_plus"
 rendering_device/driver.windows="d3d12"
+textures/vram_compression/import_etc2_astc=true

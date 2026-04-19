@@ -74,6 +74,11 @@ func send_to_peer(peer_id: int, msg_type: int, payload: PackedByteArray) -> void
 func broadcast(msg_type: int, payload: PackedByteArray) -> void:
     if _peer == null:
         return
+    # WebSocketMultiplayerPeer reports CONNECTION_DISCONNECTED while no clients
+    # are attached; put_packet errors out as ERR_UNCONFIGURED in that state, and
+    # tick_loop broadcasts every tick → error spam. Skip until someone joins.
+    if _peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+        return
     var framed := Codec.write_envelope(msg_type, payload)
     _peer.set_target_peer(MultiplayerPeer.TARGET_PEER_BROADCAST)
     _peer.put_packet(framed)
