@@ -6,6 +6,7 @@ enum Part { HULL = 0, TURRET = 1, ENGINE = 2, LEFT_TRACK = 3, RIGHT_TRACK = 4, T
 
 var player_id: int = 0
 var team: int = 0
+var display_name: String = ""
 var pos: Vector3 = Vector3.ZERO
 var yaw: float = 0.0
 var turret_yaw: float = 0.0
