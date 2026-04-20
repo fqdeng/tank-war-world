@@ -14,6 +14,9 @@ client/assets/fonts/*.full.otf
 # Superpowers brainstorm session data
 .superpowers/
 
+# Git worktrees (local isolated workspaces)
+.worktrees/
+
 # IDE
 .vscode/
 .idea/
