@@ -20,11 +20,12 @@ var _rng := RandomNumberGenerator.new()
 var _stuck_timer: float = 0.0
 var _unstick_timer: float = 0.0
 var _unstick_turn_sign: float = 1.0
+var _stuck_grace_timer: float = 0.0
 var _prev_pos: Vector3 = Vector3.ZERO
 var _has_prev_pos: bool = false
-const STUCK_SPEED_THRESHOLD: float = 2.5
+const STUCK_SPEED_THRESHOLD: float = 1.5
 const STUCK_TRIGGER_S: float = 1.2
-const UNSTICK_REVERSE_S: float = 0.9
+const UNSTICK_REVERSE_S: float = 1.2
 
 # Cap how fast AI can traverse the turret / elevate the gun so it can't snap
 # onto a target in one tick. Before this, the brain set turret_yaw directly to
@@ -59,11 +60,13 @@ func setup(pid: int, world) -> void:
     _player_id = pid
     _rng.seed = hash(pid) + int(Time.get_ticks_msec())
     _pick_new_waypoint(world)
+    _stuck_grace_timer = 0.5
 
 func step(state: TankState, world, dt: float) -> Dictionary:
     _repath_timer -= dt
     _fire_cooldown -= dt
     _unstick_timer = max(0.0, _unstick_timer - dt)
+    _stuck_grace_timer = max(0.0, _stuck_grace_timer - dt)
 
     # Measure actual movement so we can detect when we're wedged against an
     # obstacle (TankCollision pushes us out every tick, so commanded forward
@@ -99,7 +102,7 @@ func step(state: TankState, world, dt: float) -> Dictionary:
             move_forward = min(move_forward, 0.3)
 
         # Stuck check: commanded forward motion but barely any real displacement.
-        if move_forward > 0.5 and actual_speed < STUCK_SPEED_THRESHOLD:
+        if _stuck_grace_timer <= 0.0 and move_forward > 0.5 and actual_speed < STUCK_SPEED_THRESHOLD:
             _stuck_timer += dt
         else:
             _stuck_timer = 0.0
