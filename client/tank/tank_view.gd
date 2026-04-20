@@ -20,6 +20,7 @@ var _max_hp: int = Constants.TANK_MAX_HP
 var _hp_bar_root: Node3D
 var _hp_bar_fill_anchor: Node3D
 var _hp_bar_fill_mat: StandardMaterial3D
+var _name_label: Label3D = null
 var _dust: CPUParticles3D
 var _engine: AudioStreamPlayer3D
 var _prev_pos: Vector3 = Vector3.ZERO
@@ -149,6 +150,19 @@ func _build_mesh() -> void:
         add_child(_engine)
 
     _build_hp_bar()
+
+    _name_label = Label3D.new()
+    _name_label.text = ""
+    _name_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    _name_label.no_depth_test = false
+    _name_label.pixel_size = 0.005
+    _name_label.font_size = 32
+    _name_label.outline_size = 8
+    _name_label.outline_modulate = Color.BLACK
+    _name_label.modulate = Color.WHITE
+    _name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    _name_label.position = Vector3(0, 4.2, 0)
+    add_child(_name_label)
 
 # HP bar floating above the turret. Two coplanar quads (dark backing + colored
 # fill) rotated as a single rigid group to face the camera each frame — we
@@ -318,3 +332,7 @@ func flash_hit() -> void:
 
 func set_dead(dead: bool) -> void:
     visible = not dead
+
+func set_display_name(n: String) -> void:
+    if _name_label != null and _name_label.text != n:
+        _name_label.text = n

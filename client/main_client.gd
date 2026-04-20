@@ -205,6 +205,7 @@ func _handle_snapshot(msg) -> void:
         seen[t.player_id] = true
         if t.player_id == _my_player_id:
             _ensure_view(t.player_id, t.team, true)
+            _tanks[t.player_id].set_display_name(t.display_name)
             if _prediction:
                 _prediction.reconcile(t.pos, t.yaw, t.turret_yaw, t.gun_pitch, t.hp, t.last_input_tick, t.ammo, t.reload_remaining)
                 # Sync turret destruction from the snapshot so can_fire() gates the
@@ -222,6 +223,7 @@ func _handle_snapshot(msg) -> void:
                 _scope_overlay.get_node("Reticle").set_turret_damaged(t.turret_regen_remaining)
         else:
             _ensure_view(t.player_id, t.team, false)
+            _tanks[t.player_id].set_display_name(t.display_name)
             if not _remote_interp.has(t.player_id):
                 _remote_interp[t.player_id] = Interpolation.new()
             # Push using the server's send time, not our receive time. Network
