@@ -43,6 +43,14 @@ const AI_ERR_DECAY: float = 0.55
 const AI_ERR_REF_DIST_M: float = 300.0  # distance at which error scale = 1.0
 const AI_ERR_MIN_SCALE: float = 0.2     # close-range floor — point-blank still has tiny wobble
 const AI_ERR_MAX_SCALE: float = 1.8     # long-range ceiling — don't blow up past max engage
+
+# Local proximity steering: every tick, offset the waypoint-heading by a
+# repulsion term from obstacles inside a forward cone. Keeps AI from driving
+# straight into rocks/trees instead of waiting for the stuck fallback.
+const AVOID_LOOKAHEAD_M: float = 18.0
+const AVOID_K: float = 1.2
+const AVOID_URGENCY_SLOW: float = 0.6
+
 var _current_target_id: int = 0
 var _aim_yaw_bias: float = 0.0   # unit-signed [-1, 1], scaled by distance at use time
 var _aim_pitch_bias: float = 0.0
@@ -82,9 +90,13 @@ func step(state: TankState, world, dt: float) -> Dictionary:
             to_wp = _waypoint - state.pos
             to_wp.y = 0.0
         var desired_yaw: float = atan2(-to_wp.x, -to_wp.z)
-        var yaw_err: float = wrapf(desired_yaw - state.yaw, -PI, PI)
+        var avoid_result: Dictionary = _compute_avoid_turn(state, world)
+        var adjusted_yaw: float = desired_yaw + avoid_result.turn * AVOID_K
+        var yaw_err: float = wrapf(adjusted_yaw - state.yaw, -PI, PI)
         move_turn = clamp(yaw_err / 0.4, -1.0, 1.0)
         move_forward = 1.0 if abs(yaw_err) < 1.2 else 0.0
+        if avoid_result.max_urgency > AVOID_URGENCY_SLOW:
+            move_forward = min(move_forward, 0.3)
 
         # Stuck check: commanded forward motion but barely any real displacement.
         if move_forward > 0.5 and actual_speed < STUCK_SPEED_THRESHOLD:
@@ -256,4 +268,46 @@ func _line_blocked_by_large_rock(from: Vector3, to: Vector3, world) -> bool:
         if px * px + pz * pz < r * r:
             return true
     return false
+
+# Returns {"turn": float, "max_urgency": float}.
+# turn: signed steering offset (radians-ish, scaled by AVOID_K by caller).
+# max_urgency: 0..~1, used by caller to decide whether to throttle forward speed.
+func _compute_avoid_turn(state: TankState, world) -> Dictionary:
+    # Forward and right in world. Tank yaw convention (see ai_brain.gd L84):
+    # desired_yaw = atan2(-dx, -dz), so at yaw=0 the tank faces -Z and
+    # pilot's right is +X. Derivation: right = forward × up.
+    var fwd_x: float = -sin(state.yaw)
+    var fwd_z: float = -cos(state.yaw)
+    var right_x: float =  cos(state.yaw)
+    var right_z: float = -sin(state.yaw)
+    var turn: float = 0.0
+    var max_urgency: float = 0.0
+    var stable_side: float = 1.0 if (_player_id & 1) == 0 else -1.0
+    for o in world.obstacles:
+        if world.is_obstacle_destroyed(o.id):
+            continue
+        var r: float = _obstacle_radius(o.kind)
+        var dx: float = o.pos.x - state.pos.x
+        var dz: float = o.pos.z - state.pos.z
+        var d_sq: float = dx * dx + dz * dz
+        if d_sq < 0.0001:
+            continue
+        var d: float = sqrt(d_sq)
+        var fwd_dot: float = (fwd_x * dx + fwd_z * dz) / d
+        if fwd_dot < 0.2:
+            continue
+        var reach: float = AVOID_LOOKAHEAD_M + r
+        if d > reach:
+            continue
+        var right_dot: float = (right_x * dx + right_z * dz) / d
+        var urgency: float = (1.0 - d / reach) * fwd_dot
+        var side: float = sign(right_dot)
+        if abs(right_dot) < 0.1:
+            side = stable_side
+        # Obstacle on right (side > 0) → turn LEFT (positive yaw delta, since
+        # +yaw rotates forward toward -X which is the tank's left half).
+        turn += side * urgency
+        if urgency > max_urgency:
+            max_urgency = urgency
+    return {"turn": turn, "max_urgency": max_urgency}
 
