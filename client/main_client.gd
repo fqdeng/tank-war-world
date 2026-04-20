@@ -97,12 +97,13 @@ func _ready() -> void:
     _camera = ThirdPersonCam.new()
     add_child(_camera)
     _camera.current = true
-    # Same reasoning as _scope_cam: the camera's transform is written only in
-    # _process, but Godot's physics_interpolation captures prev/current at
-    # physics-tick boundaries. That mismatch wobbles the rendered camera along
-    # its motion axis, which projects straight into "front/back stutter" on the
-    # tank it's tracking (the remote tanks are off-axis and don't show it).
-    _camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+    # The cam writes its transform in _physics_process at a stable dt and leaves
+    # physics_interpolation on (INHERIT, the project default). Godot then
+    # interpolates the rendered cam pose between physics ticks the same way it
+    # does for the locally-predicted tank body. Forcing interp=OFF here made the
+    # cam step once per physics tick while the tracked tank kept moving
+    # smoothly between ticks, which read as per-tick stutter locked to the
+    # local tank (remote tanks aren't rigidly cam-tracked, so they hid it).
     # Keep the audio listener pinned to the third-person camera. Without this,
     # Godot uses whichever Camera3D is .current, so entering scope (barrel-
     # mounted cam) slams every sound source right against the ear.
