@@ -55,8 +55,8 @@ func test_snapshot_roundtrip_multiple_tanks() -> void:
     var msg := Messages.Snapshot.new()
     msg.tick = 1234
     msg.server_time_ms = 9876543
-    msg.add_tank(1, 0, Vector3(10, 0, 20), 0.5, 0.1, 0.0, 850, 777, 24, 0.0, 0.0)
-    msg.add_tank(2, 1, Vector3(-30, 2, 40), 1.5, 0.2, 0.3, 600, 888, 12, 1.75, 6.3)
+    msg.add_tank(1, 0, Vector3(10, 0, 20), 0.5, 0.1, 0.0, 850, 777, 24, 0.0, 0.0, "Wolf")
+    msg.add_tank(2, 1, Vector3(-30, 2, 40), 1.5, 0.2, 0.3, 600, 888, 12, 1.75, 6.3, "P42")
     var bytes := msg.encode()
     var decoded := Messages.Snapshot.decode(bytes)
     assert_eq(decoded.tick, 1234)
@@ -71,6 +71,20 @@ func test_snapshot_roundtrip_multiple_tanks() -> void:
     assert_almost_eq(decoded.tanks[1].reload_remaining, 1.75, 0.001)
     assert_almost_eq(decoded.tanks[0].turret_regen_remaining, 0.0, 0.001)
     assert_almost_eq(decoded.tanks[1].turret_regen_remaining, 6.3, 0.001)
+    assert_eq(decoded.tanks[0].display_name, "Wolf")
+    assert_eq(decoded.tanks[1].display_name, "P42")
+
+func test_snapshot_roundtrip_default_display_name_is_empty() -> void:
+    # add_tank's display_name parameter defaults to "" — verifies callers that
+    # don't pass it (none expected post-rollout, but the default is part of
+    # the contract) get an empty string back, not crash on encode/decode.
+    var msg := Messages.Snapshot.new()
+    msg.tick = 1
+    msg.server_time_ms = 0
+    msg.add_tank(1, 0, Vector3.ZERO, 0.0, 0.0, 0.0, 1000, 0, 0, 0.0, 0.0)
+    var bytes := msg.encode()
+    var decoded := Messages.Snapshot.decode(bytes)
+    assert_eq(decoded.tanks[0].display_name, "")
 
 func test_ping_roundtrip() -> void:
     var msg := Messages.Ping.new()
