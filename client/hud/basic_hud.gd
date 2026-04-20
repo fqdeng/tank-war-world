@@ -84,7 +84,7 @@ func set_team_kills(blue: int, red: int) -> void:
     if _scoreboard:
         _scoreboard.text = "[center][color=#4db2ff]BLUE %d[/color]  /  %d  /  [color=#ff5050]RED %d[/color][/center]" % [blue, MATCH_KILL_TARGET, red]
 
-const COMBAT_LOG_MAX_LINES: int = 50  # hard cap; overflow fades out FIFO
+const COMBAT_LOG_MAX_LINES: int = 15  # hard cap; overflow fades out FIFO
 const COMBAT_LOG_FADE_S: float = 1.0
 
 func add_hit_line(attacker: String, attacker_team: int, victim: String, victim_team: int, damage: int) -> void:
