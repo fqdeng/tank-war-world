@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://crbfvdq17excq"
-path="res://.godot/imported/NotoSansSC-Regular.otf-6e0d15b21fb702b97036d85ad5d6e1ce.fontdata"
+uid="uid://b5xxvbw62leg"
+path="res://.godot/imported/NotoEmoji-Regular.ttf-d984de6f3c974dc3066f79d19cb1c5de.fontdata"
 
 [deps]
 
-source_file="res://client/assets/fonts/NotoSansSC-Regular.otf"
-dest_files=["res://.godot/imported/NotoSansSC-Regular.otf-6e0d15b21fb702b97036d85ad5d6e1ce.fontdata"]
+source_file="res://client/assets/fonts/NotoEmoji-Regular.ttf"
+dest_files=["res://.godot/imported/NotoEmoji-Regular.ttf-d984de6f3c974dc3066f79d19cb1c5de.fontdata"]
 
 [params]
 
@@ -27,7 +27,7 @@ subpixel_positioning=4
 keep_rounding_remainders=true
 oversampling=0.0
 Fallbacks=null
-fallbacks=["res://client/assets/fonts/NotoEmoji-Regular.ttf"]
+fallbacks=[]
 Compress=null
 compress=true
 preload=[]

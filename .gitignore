@@ -2,8 +2,9 @@
 .godot/
 /android/
 
-# Pristine font kept around so build.sh's subset step is idempotent — not shipped.
+# Pristine fonts kept around so build.sh's subset step is idempotent — not shipped.
 client/assets/fonts/*.full.otf
+client/assets/fonts/*.full.ttf
 
 # Build output
 /build/

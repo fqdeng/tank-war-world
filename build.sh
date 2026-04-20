@@ -56,6 +56,36 @@ orig_size=$(wc -c < "$ORIG_FONT")
 new_size=$(wc -c < "$OUT_FONT")
 echo "[subset] done: $(printf '%d' "$orig_size") → $(printf '%d' "$new_size") bytes"
 
+# --- 1b. Emoji font subsetting (single glyph: 🎲) -------------------------
+EMOJI_SRC="$FONT_DIR/NotoEmoji-Regular.ttf"
+EMOJI_ORIG="$FONT_DIR/NotoEmoji-Regular.full.ttf"
+EMOJI_OUT="$FONT_DIR/NotoEmoji-Regular.ttf"
+
+if [[ ! -f "$EMOJI_ORIG" ]]; then
+    echo "[subset-emoji] backing up original → $EMOJI_ORIG"
+    cp "$EMOJI_SRC" "$EMOJI_ORIG"
+fi
+
+echo "[subset-emoji] running pyftsubset"
+pyftsubset "$EMOJI_ORIG" \
+    --output-file="$EMOJI_OUT" \
+    --unicodes=U+1F3B2 \
+    --layout-features='*' \
+    --glyph-names \
+    --symbol-cmap \
+    --legacy-cmap \
+    --notdef-glyph \
+    --notdef-outline \
+    --recommended-glyphs \
+    --name-legacy \
+    --drop-tables+=DSIG \
+    --name-IDs='*' \
+    --name-languages='*'
+
+emoji_orig_size=$(wc -c < "$EMOJI_ORIG")
+emoji_new_size=$(wc -c < "$EMOJI_OUT")
+echo "[subset-emoji] done: $(printf '%d' "$emoji_orig_size") → $(printf '%d' "$emoji_new_size") bytes"
+
 # --- 2. Godot web export --------------------------------------------------
 /Applications/Godot.app/Contents/MacOS/Godot --headless \
     --export-release "Web" build/web/index.html
