@@ -26,20 +26,32 @@ var _prev_pos: Vector3 = Vector3.ZERO
 var _has_prev_pos: bool = false
 var _engine_speed: float = 0.0  # smoothed horizontal speed for pitch/volume
 
-# Smoothing targets — snapshot updates these; _process lerps visuals toward them.
-# Plan 03 will replace this with proper buffered interpolation.
-var _target_pos: Vector3 = Vector3.ZERO
-var _target_yaw: float = 0.0
-var _target_turret_yaw: float = 0.0
-var _target_gun_pitch: float = 0.0
-var _first_snapshot: bool = true
-const SMOOTH_POS: float = 14.0
-const SMOOTH_ROT: float = 18.0
+# Set to true by setup() and by mark_teleport(). The next apply_predicted call
+# will reset Godot's physics_interpolation previous-frame cache to this pose so
+# the first render frame after creation/teleport doesn't lerp from (0,0,0) or
+# the death position.
+var _needs_interp_reset: bool = true
+
+# Remote-tank rendering: apply_snapshot writes transforms directly from the
+# Interpolation.sample() result — no second-layer exp-lerp. The previous double
+# smoothing (SMOOTH_POS=14, SMOOTH_ROT=18) added ~70ms tail on top of the
+# interp delay and turned buffer-starvation freezes into visible decel→freeze
+# →accel curves, which read as "stuttering". The buffered interpolator already
+# produces a smooth per-frame value, so assigning it straight to position is
+# both cleaner and perceptibly smoother.
 
 func setup(pid: int, t: int, local: bool) -> void:
     player_id = pid
     team = t
     is_local = local
+    # Remote tanks assign their transform in _process every render frame from
+    # Interpolation.sample(). Godot's physics_interpolation is designed for
+    # transforms set in _physics_process — applying it to per-render writes would
+    # render a one-frame-lagged lerp. Disable interpolation on this subtree so
+    # positions render exactly as assigned. Local tanks keep INHERIT so the
+    # project-wide physics_interpolation smooths their physics-rate updates.
+    if not is_local:
+        physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
     _build_mesh()
 
 func set_terrain(hm: PackedFloat32Array, size: int) -> void:
@@ -214,43 +226,28 @@ func _update_hp_bar() -> void:
         _hp_bar_fill_mat.albedo_color = c
 
 func apply_snapshot(pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int) -> void:
-    _target_pos = pos
-    _target_yaw = yaw
-    _target_turret_yaw = turret_yaw
-    _target_gun_pitch = gun_pitch
+    # Direct assignment from buffered interpolation. Y is resampled from the
+    # local heightmap because the interp lerp is linear in 3D, which can leave
+    # the tank slightly embedded/floating on curved terrain between the two
+    # buffer entries.
+    var draw_pos: Vector3 = pos
+    if _heightmap.size() > 0:
+        draw_pos.y = TerrainGenerator.sample_height(_heightmap, _terrain_size, draw_pos.x, draw_pos.z)
+    _update_dust(draw_pos)
+    position = draw_pos
+    rotation.y = yaw
+    if _turret:
+        _turret.rotation.y = turret_yaw
+    if _barrel:
+        _barrel.rotation.x = gun_pitch
     if hp != _hp:
         _hp = hp
         _update_hp_bar()
-    if _first_snapshot:
-        # First snapshot: snap directly so we don't lerp from origin to spawn.
-        _first_snapshot = false
-        position = pos
-        rotation.y = yaw
-        if _turret:
-            _turret.rotation.y = turret_yaw
-        if _barrel:
-            _barrel.rotation.x = gun_pitch
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
     # HP bar faces the camera as a rigid unit — run for all tanks (local + remote).
+    # Transforms are driven externally: remote → apply_snapshot, local → apply_predicted.
     _face_hp_bar_to_camera()
-    # Local tank is driven by apply_predicted each frame — skip the remote-smoothing lerp.
-    if is_local:
-        return
-    if _first_snapshot:
-        return
-    var tp: float = clamp(SMOOTH_POS * delta, 0.0, 1.0)
-    var tr: float = clamp(SMOOTH_ROT * delta, 0.0, 1.0)
-    var lerped: Vector3 = position.lerp(_target_pos, tp)
-    if _heightmap.size() > 0:
-        lerped.y = TerrainGenerator.sample_height(_heightmap, _terrain_size, lerped.x, lerped.z)
-    _update_dust(lerped)
-    position = lerped
-    rotation.y = lerp_angle(rotation.y, _target_yaw, tr)
-    if _turret:
-        _turret.rotation.y = lerp_angle(_turret.rotation.y, _target_turret_yaw, tr)
-    if _barrel:
-        _barrel.rotation.x = lerp(_barrel.rotation.x, _target_gun_pitch, tr)
 
 func barrel_node() -> Node3D:
     return _barrel
@@ -270,7 +267,15 @@ func apply_predicted(pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: flo
     if hp != _hp:
         _hp = hp
         _update_hp_bar()
-    _first_snapshot = false
+    # First real pose after view creation / respawn teleport: discard the stale
+    # "previous" transform so physics_interpolation doesn't render a lerp from
+    # the old (often origin or death) pose to here.
+    if _needs_interp_reset:
+        _needs_interp_reset = false
+        reset_physics_interpolation()
+
+func mark_teleport() -> void:
+    _needs_interp_reset = true
 
 func _update_dust(new_pos: Vector3) -> void:
     if _dust == null:

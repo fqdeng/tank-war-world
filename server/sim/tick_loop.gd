@@ -42,6 +42,7 @@ func set_ws_server(s) -> void:
     _ws_server.connect("fire_received", _on_fire_received)
 
 func start() -> void:
+    _world.start_sim_clock()
     set_process(true)
 
 func _process(delta: float) -> void:
@@ -128,7 +129,15 @@ func _step_tick(dt: float) -> void:
 
     var snap := Messages.Snapshot.new()
     snap.tick = _tick
-    snap.server_time_ms = Time.get_ticks_msec()
+    # Sim-tick time (strictly TICK_INTERVAL-spaced), NOT wall clock. Stamping
+    # with Time.get_ticks_msec() here bakes _process scheduler jitter (~16ms)
+    # into every snapshot, which the client then saw as uneven interpolation
+    # lerp steps. Using _tick * TICK_INTERVAL_MS guarantees consecutive
+    # snapshots are exactly 50ms apart in the client's buffer, regardless of
+    # server frame timing or catch-up ticks within a single frame. PONG
+    # timestamps share this epoch via world.sim_clock_ms() so the client's
+    # offset EMA converges cleanly.
+    snap.server_time_ms = _tick * int(Constants.TICK_INTERVAL * 1000.0)
     for pid in _world.tanks:
         var s = _world.tanks[pid]
         if s.alive:

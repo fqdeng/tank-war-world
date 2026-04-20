@@ -396,6 +396,11 @@ func _handle_respawn(msg) -> void:
         _hud.set_status("CONNECTED")
         if _prediction != null:
             _prediction.teleport(msg.pos)
+        # Tell the view to discard its physics_interpolation "previous" pose on
+        # the next apply_predicted, so we don't see a visible lerp from the
+        # death spot to the new spawn.
+        if _tanks.has(msg.player_id):
+            _tanks[msg.player_id].mark_teleport()
     if _tanks.has(msg.player_id):
         _tanks[msg.player_id].set_dead(false)
 
@@ -419,6 +424,13 @@ func _physics_process(delta: float) -> void:
         var ps = _prediction.state()
         inp.pos = ps.pos
         inp.yaw = ps.yaw
+        # Push the local tank's transform inside the physics frame (not _process)
+        # so Godot's physics_interpolation captures it and can smoothly interpolate
+        # between physics ticks when rendering. Without this, on web (60 Hz physics,
+        # 60 Hz render w/ vsync jitter) render frames alias against physics ticks
+        # and the tank appears to microstutter.
+        if _tanks.has(_my_player_id):
+            _tanks[_my_player_id].apply_predicted(ps.pos, ps.yaw, ps.turret_yaw, ps.gun_pitch, ps.hp)
     # Throttle INPUT to 20 Hz (= server tick). Web physics runs at 60 Hz and
     # native at 120 Hz, so we were sending 3–6× more INPUT packets than the
     # server actually consumes — pure uplink + encode + GC waste on Web.
@@ -477,10 +489,11 @@ func _process(_delta: float) -> void:
         if _hud_stats_accum >= _HUD_STATS_INTERVAL_S:
             _hud_stats_accum = 0.0
             _hud.set_net_stats(_rtt_ms, _ws.bytes_sent_per_sec(), _ws.bytes_recv_per_sec())
-    # Apply predicted state at render rate (no physics-interpolation stack).
+    # Local tank transform is pushed in _physics_process so physics_interpolation
+    # can smooth between physics ticks. Here we only mirror the latest prediction
+    # state into the HUD — reads, not transform writes.
     if _prediction != null and _tanks.has(_my_player_id):
         var s = _prediction.state()
-        _tanks[_my_player_id].apply_predicted(s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp)
         _hud.set_ammo(s.ammo)
         _hud.set_reload(s.reload_remaining, Constants.TANK_RELOAD_S)
         _hud.radar.set_self_pose(s.pos, s.yaw)

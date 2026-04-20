@@ -36,6 +36,7 @@ theme/custom_font="res://client/assets/fonts/NotoSansSC-Regular.otf"
 3d/physics_engine.web="GodotPhysics3D"
 common/physics_ticks_per_second=120
 common/physics_ticks_per_second.web=60
+common/physics_interpolation=true
 
 [editor_plugins]
 
