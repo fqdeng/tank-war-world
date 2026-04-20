@@ -1,0 +1,48 @@
+[gd_scene load_steps=2 format=3 uid="uid://b7namentry00001"]
+
+[ext_resource type="Script" path="res://client/menu/name_entry.gd" id="1_script"]
+
+[node name="NameEntry" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.05, 0.05, 0.08, 0.9)
+
+[node name="Center" type="CenterContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="Center"]
+custom_minimum_size = Vector2(420, 0)
+theme_override_constants/separation = 20
+
+[node name="Title" type="Label" parent="Center/VBox"]
+text = "Enter Name"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 48
+
+[node name="Row" type="HBoxContainer" parent="Center/VBox"]
+theme_override_constants/separation = 12
+
+[node name="NameField" type="LineEdit" parent="Center/VBox/Row"]
+custom_minimum_size = Vector2(280, 56)
+size_flags_horizontal = 3
+max_length = 12
+placeholder_text = "name..."
+
+[node name="DiceButton" type="Button" parent="Center/VBox/Row"]
+custom_minimum_size = Vector2(56, 56)
+text = "🎲"
+
+[node name="JoinButton" type="Button" parent="Center/VBox"]
+custom_minimum_size = Vector2(0, 56)
+text = "Join Battle"
