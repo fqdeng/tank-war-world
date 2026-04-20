@@ -23,12 +23,21 @@ class Connect:
         return m
 
 # ---- ConnectAck (server → client) ----
+# `pickups` carries every currently-alive pickup so a late joiner sees the same
+# set of hearts/shields the existing players see — same idea as
+# destroyed_obstacle_ids, but additive instead of subtractive.
+class PickupEntry:
+    var pickup_id: int = 0
+    var kind: int = 0
+    var pos: Vector3 = Vector3.ZERO
+
 class ConnectAck:
     var player_id: int = 0
     var team: int = 0
     var world_seed: int = 0
     var spawn_pos: Vector3 = Vector3.ZERO
     var destroyed_obstacle_ids: PackedInt32Array = PackedInt32Array()
+    var pickups: Array = []  # Array[PickupEntry]
 
     func encode() -> PackedByteArray:
         var buf := PackedByteArray()
@@ -39,6 +48,11 @@ class ConnectAck:
         Codec.write_u16(buf, destroyed_obstacle_ids.size())
         for oid in destroyed_obstacle_ids:
             Codec.write_u32(buf, oid)
+        Codec.write_u16(buf, pickups.size())
+        for p in pickups:
+            Codec.write_u32(buf, p.pickup_id)
+            Codec.write_u8(buf, p.kind)
+            Codec.write_vec3(buf, p.pos)
         return buf
 
     static func decode(buf: PackedByteArray) -> ConnectAck:
@@ -53,6 +67,13 @@ class ConnectAck:
         for i in n:
             arr.append(Codec.read_u32(buf, c))
         m.destroyed_obstacle_ids = arr
+        var np := Codec.read_u16(buf, c)
+        for i in np:
+            var p := PickupEntry.new()
+            p.pickup_id = Codec.read_u32(buf, c)
+            p.kind = Codec.read_u8(buf, c)
+            p.pos = Codec.read_vec3(buf, c)
+            m.pickups.append(p)
         return m
 
 # ---- InputMsg (client → server, 20 Hz) ----
@@ -108,6 +129,10 @@ class TankSnapshot:
     var reload_remaining: float = 0.0
     var turret_regen_remaining: float = 0.0  # 0 when turret is functional; >0 while repairing
     var display_name: String = ""
+    # 0 when no shield active. >0 = seconds of pickup-granted invulnerability
+    # (separate from spawn_invuln, which isn't networked because it's short and
+    # universal). Drives the head-badge on remote tanks + own HUD timer.
+    var shield_invuln_remaining: float = 0.0
 
 class Snapshot:
     var tick: int = 0
@@ -119,7 +144,7 @@ class Snapshot:
     var team_kills_0: int = 0
     var team_kills_1: int = 0
 
-    func add_tank(pid: int, team: int, pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int, last_input_tick: int = 0, ammo: int = 0, reload_remaining: float = 0.0, turret_regen_remaining: float = 0.0, display_name: String = "") -> void:
+    func add_tank(pid: int, team: int, pos: Vector3, yaw: float, turret_yaw: float, gun_pitch: float, hp: int, last_input_tick: int = 0, ammo: int = 0, reload_remaining: float = 0.0, turret_regen_remaining: float = 0.0, display_name: String = "", shield_invuln_remaining: float = 0.0) -> void:
         var t := TankSnapshot.new()
         t.player_id = pid
         t.team = team
@@ -133,6 +158,7 @@ class Snapshot:
         t.reload_remaining = reload_remaining
         t.turret_regen_remaining = turret_regen_remaining
         t.display_name = display_name
+        t.shield_invuln_remaining = shield_invuln_remaining
         tanks.append(t)
 
     func encode() -> PackedByteArray:
@@ -153,6 +179,7 @@ class Snapshot:
             Codec.write_f32(buf, t.reload_remaining)
             Codec.write_f32(buf, t.turret_regen_remaining)
             Codec.write_string(buf, t.display_name)
+            Codec.write_f32(buf, t.shield_invuln_remaining)
         Codec.write_u16(buf, team_kills_0)
         Codec.write_u16(buf, team_kills_1)
         return buf
@@ -177,6 +204,7 @@ class Snapshot:
             t.reload_remaining = Codec.read_f32(buf, c)
             t.turret_regen_remaining = Codec.read_f32(buf, c)
             t.display_name = Codec.read_string(buf, c)
+            t.shield_invuln_remaining = Codec.read_f32(buf, c)
             m.tanks.append(t)
         m.team_kills_0 = Codec.read_u16(buf, c)
         m.team_kills_1 = Codec.read_u16(buf, c)
@@ -315,6 +343,51 @@ class ObstacleDestroyed:
         var m := ObstacleDestroyed.new()
         var c := [0]
         m.obstacle_id = Codec.read_u32(buf, c)
+        return m
+
+# ---- PickupSpawned (server → all clients) ----
+class PickupSpawned:
+    var pickup_id: int = 0
+    var kind: int = 0  # Constants.PICKUP_KIND_*
+    var pos: Vector3 = Vector3.ZERO
+
+    func encode() -> PackedByteArray:
+        var buf := PackedByteArray()
+        Codec.write_u32(buf, pickup_id)
+        Codec.write_u8(buf, kind)
+        Codec.write_vec3(buf, pos)
+        return buf
+
+    static func decode(buf: PackedByteArray) -> PickupSpawned:
+        var m := PickupSpawned.new()
+        var c := [0]
+        m.pickup_id = Codec.read_u32(buf, c)
+        m.kind = Codec.read_u8(buf, c)
+        m.pos = Codec.read_vec3(buf, c)
+        return m
+
+# ---- PickupConsumed (server → all clients) ----
+# Sent when a tank walks into a pickup (and on the periodic refresh-wipe, where
+# every still-alive pickup is broadcast as "consumed by player 0" before the
+# new batch is spawned). consumer_id = 0 means "expired by world reset".
+class PickupConsumed:
+    var pickup_id: int = 0
+    var consumer_id: int = 0
+    var kind: int = 0
+
+    func encode() -> PackedByteArray:
+        var buf := PackedByteArray()
+        Codec.write_u32(buf, pickup_id)
+        Codec.write_u16(buf, consumer_id)
+        Codec.write_u8(buf, kind)
+        return buf
+
+    static func decode(buf: PackedByteArray) -> PickupConsumed:
+        var m := PickupConsumed.new()
+        var c := [0]
+        m.pickup_id = Codec.read_u32(buf, c)
+        m.consumer_id = Codec.read_u16(buf, c)
+        m.kind = Codec.read_u8(buf, c)
         return m
 
 # ---- Ping (client → server, ~1 Hz) ----

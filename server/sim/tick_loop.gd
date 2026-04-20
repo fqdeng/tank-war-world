@@ -12,6 +12,7 @@ const ShellSim = preload("res://server/combat/shell_sim.gd")
 const AIBrain = preload("res://server/ai/ai_brain.gd")
 const TankCollision = preload("res://shared/world/tank_collision.gd")
 const NameSanitizer = preload("res://server/util/name_sanitizer.gd")
+const PickupManager = preload("res://server/sim/pickup_manager.gd")
 
 const TARGET_TOTAL_TANKS: int = 10  # fill with AI until this many alive tanks exist
 const MATCH_KILL_TARGET: int = 100  # first team to this many kills wins — game restarts
@@ -19,6 +20,7 @@ const MATCH_KILL_TARGET: int = 100  # first team to this many kills wins — gam
 var _world
 var _ws_server
 var _shell_sim
+var _pickups: PickupManager
 var _accum: float = 0.0
 var _tick: int = 0
 
@@ -34,6 +36,8 @@ func set_world(w) -> void:
     _shell_sim.set_world(w)
     _shell_sim.set_hit_callback(func(shell, victim_id, point, part_id, obstacle_id, obstacle_kind):
         _on_shell_hit(shell, victim_id, point, part_id, obstacle_id, obstacle_kind))
+    _pickups = PickupManager.new()
+    _pickups.setup(w.heightmap, w.terrain_size)
 
 func set_ws_server(s) -> void:
     _ws_server = s
@@ -104,6 +108,8 @@ func _step_tick(dt: float) -> void:
             state.reload_remaining = max(0.0, state.reload_remaining - dt)
         if state.spawn_invuln_remaining > 0.0:
             state.spawn_invuln_remaining = max(0.0, state.spawn_invuln_remaining - dt)
+        if state.shield_invuln_remaining > 0.0:
+            state.shield_invuln_remaining = max(0.0, state.shield_invuln_remaining - dt)
         # Part regen: tick each broken part's countdown; when it hits zero,
         # snap the part back to its init max HP so the tank recovers the
         # functional capability (turret → can fire, engine → top speed, etc.).
@@ -118,6 +124,30 @@ func _step_tick(dt: float) -> void:
                 state.part_regen_remaining.erase(p)
 
     _shell_sim.tick(dt)
+
+    # Pickups: step the manager AFTER tank state has been integrated for this
+    # tick so collision tests use up-to-date positions; broadcast spawn/consume
+    # events before snapshot so clients can apply them in the same tick where
+    # the tank's hp/shield_invuln_remaining will reflect the change.
+    if _pickups != null:
+        var alive: Array = []
+        for pid in _world.tanks:
+            var t = _world.tanks[pid]
+            if t.alive:
+                alive.append(t)
+        var ev: Dictionary = _pickups.step(dt, alive)
+        for s in ev["spawned"]:
+            var sp := Messages.PickupSpawned.new()
+            sp.pickup_id = int(s["pickup_id"])
+            sp.kind = int(s["kind"])
+            sp.pos = s["pos"]
+            _ws_server.broadcast(MessageType.PICKUP_SPAWNED, sp.encode())
+        for c in ev["consumed"]:
+            var cm := Messages.PickupConsumed.new()
+            cm.pickup_id = int(c["pickup_id"])
+            cm.consumer_id = int(c["consumer_id"])
+            cm.kind = int(c["kind"])
+            _ws_server.broadcast(MessageType.PICKUP_CONSUMED, cm.encode())
 
     var to_respawn: Array = []
     for pid in _respawns:
@@ -143,7 +173,7 @@ func _step_tick(dt: float) -> void:
         var s = _world.tanks[pid]
         if s.alive:
             var turret_regen: float = float(s.part_regen_remaining.get(TankState.Part.TURRET, 0.0))
-            snap.add_tank(s.player_id, s.team, s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp, s.last_acked_input_tick, s.ammo, s.reload_remaining, turret_regen, s.display_name)
+            snap.add_tank(s.player_id, s.team, s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp, s.last_acked_input_tick, s.ammo, s.reload_remaining, turret_regen, s.display_name, s.shield_invuln_remaining)
     snap.team_kills_0 = int(_team_kills.get(0, 0))
     snap.team_kills_1 = int(_team_kills.get(1, 0))
     _ws_server.broadcast(MessageType.SNAPSHOT, snap.encode())
@@ -166,6 +196,13 @@ func _on_client_connected(peer_id: int, connect_msg) -> void:
     for oid in _world.destroyed_obstacle_ids.keys():
         arr.append(oid)
     ack.destroyed_obstacle_ids = arr
+    if _pickups != null:
+        for entry in _pickups.active_pickups():
+            var pe := Messages.PickupEntry.new()
+            pe.pickup_id = int(entry["pickup_id"])
+            pe.kind = int(entry["kind"])
+            pe.pos = entry["pos"]
+            ack.pickups.append(pe)
     _ws_server.send_to_peer(peer_id, MessageType.CONNECT_ACK, ack.encode())
 
 func _on_client_disconnected(peer_id: int) -> void:
@@ -297,9 +334,10 @@ func _on_shell_hit(shell, victim_id: int, hit_point: Vector3, part_id: int, obst
     if not _world.tanks.has(victim_id):
         return
     var victim = _world.tanks[victim_id]
-    if victim.spawn_invuln_remaining > 0.0:
-        # Damage is ignored during post-spawn grace; still broadcast a zero-damage
-        # hit so the shell visual gets cleaned up and the shooter sees the impact.
+    if victim.is_invulnerable():
+        # Damage is ignored during post-spawn grace OR active shield pickup; still
+        # broadcast a zero-damage hit so the shell visual gets cleaned up and the
+        # shooter sees the impact (and gets the "no damage on shield" feedback).
         var hit_msg_i := Messages.Hit.new()
         hit_msg_i.shell_id = shell.id
         hit_msg_i.shooter_id = shell.shooter_id
@@ -362,6 +400,7 @@ func _respawn_player(player_id: int) -> void:
     state.speed = 0.0
     state.alive = true
     state.spawn_invuln_remaining = Constants.SPAWN_INVULN_S
+    state.shield_invuln_remaining = 0.0  # don't carry a leftover shield across deaths
     var peer_id: int = _ws_server.peer_id_for_player(player_id)
     if peer_id != 0:
         var msg := Messages.Respawn.new()

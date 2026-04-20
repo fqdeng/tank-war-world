@@ -16,4 +16,6 @@ enum {
     PONG = 10,           # server → client (echoes ping + server time for RTT/clock sync)
     DISCONNECT = 11,     # either direction
     OBSTACLE_DESTROYED = 12,  # server → all clients
+    PICKUP_SPAWNED = 13,      # server → all clients
+    PICKUP_CONSUMED = 14,     # server → all clients
 }

@@ -163,3 +163,59 @@ func test_respawn_roundtrip() -> void:
     var decoded := Messages.Respawn.decode(bytes)
     assert_eq(decoded.player_id, 2)
     assert_almost_eq(decoded.pos.x, 50.0, 0.001)
+
+func test_pickup_spawned_roundtrip() -> void:
+    var msg := Messages.PickupSpawned.new()
+    msg.pickup_id = 17
+    msg.kind = Constants.PICKUP_KIND_SHIELD
+    msg.pos = Vector3(123.5, 2.0, 456.5)
+    var bytes := msg.encode()
+    var decoded := Messages.PickupSpawned.decode(bytes)
+    assert_eq(decoded.pickup_id, 17)
+    assert_eq(decoded.kind, Constants.PICKUP_KIND_SHIELD)
+    assert_almost_eq(decoded.pos.x, 123.5, 0.001)
+    assert_almost_eq(decoded.pos.z, 456.5, 0.001)
+
+func test_pickup_consumed_roundtrip() -> void:
+    var msg := Messages.PickupConsumed.new()
+    msg.pickup_id = 17
+    msg.consumer_id = 42
+    msg.kind = Constants.PICKUP_KIND_HEART
+    var bytes := msg.encode()
+    var decoded := Messages.PickupConsumed.decode(bytes)
+    assert_eq(decoded.pickup_id, 17)
+    assert_eq(decoded.consumer_id, 42)
+    assert_eq(decoded.kind, Constants.PICKUP_KIND_HEART)
+
+func test_connect_ack_roundtrip_with_pickups() -> void:
+    var msg := Messages.ConnectAck.new()
+    msg.player_id = 3
+    msg.team = 1
+    msg.world_seed = 999
+    msg.spawn_pos = Vector3.ZERO
+    var p1 := Messages.PickupEntry.new()
+    p1.pickup_id = 1
+    p1.kind = Constants.PICKUP_KIND_HEART
+    p1.pos = Vector3(100, 1, 200)
+    var p2 := Messages.PickupEntry.new()
+    p2.pickup_id = 2
+    p2.kind = Constants.PICKUP_KIND_SHIELD
+    p2.pos = Vector3(300, 2, 400)
+    msg.pickups = [p1, p2]
+    var bytes := msg.encode()
+    var decoded := Messages.ConnectAck.decode(bytes)
+    assert_eq(decoded.pickups.size(), 2)
+    assert_eq(decoded.pickups[0].pickup_id, 1)
+    assert_eq(decoded.pickups[0].kind, Constants.PICKUP_KIND_HEART)
+    assert_almost_eq(decoded.pickups[0].pos.x, 100.0, 0.001)
+    assert_eq(decoded.pickups[1].kind, Constants.PICKUP_KIND_SHIELD)
+    assert_almost_eq(decoded.pickups[1].pos.z, 400.0, 0.001)
+
+func test_snapshot_carries_shield_invuln() -> void:
+    var msg := Messages.Snapshot.new()
+    msg.tick = 1
+    msg.server_time_ms = 0
+    msg.add_tank(1, 0, Vector3.ZERO, 0.0, 0.0, 0.0, 1000, 0, 24, 0.0, 0.0, "Wolf", 12.5)
+    var bytes := msg.encode()
+    var decoded := Messages.Snapshot.decode(bytes)
+    assert_almost_eq(decoded.tanks[0].shield_invuln_remaining, 12.5, 0.001)

@@ -21,6 +21,12 @@ var _hp_bar_root: Node3D
 var _hp_bar_fill_anchor: Node3D
 var _hp_bar_fill_mat: StandardMaterial3D
 var _name_label: Label3D = null
+# Shield badge floats above the name label while shield_invuln_remaining > 0.
+# Built lazily on first activation so tanks that never grab a shield don't pay
+# the per-instance node cost.
+var _shield_badge: Node3D = null
+var _shield_badge_mat: StandardMaterial3D = null
+var _shield_active: bool = false
 var _dust: CPUParticles3D
 var _engine: AudioStreamPlayer3D
 var _prev_pos: Vector3 = Vector3.ZERO
@@ -336,3 +342,34 @@ func set_dead(dead: bool) -> void:
 func set_display_name(n: String) -> void:
     if _name_label != null and _name_label.text != n:
         _name_label.text = n
+
+# Toggle the head-badge visualization for an active shield pickup. Driven by
+# server snapshots: shield_invuln_remaining > 0 → active, else off.
+func set_shield_active(active: bool) -> void:
+    if active == _shield_active:
+        return
+    _shield_active = active
+    if active and _shield_badge == null:
+        _build_shield_badge()
+    if _shield_badge:
+        _shield_badge.visible = active
+
+func _build_shield_badge() -> void:
+    _shield_badge = Node3D.new()
+    _shield_badge.position = Vector3(0, 5.0, 0)  # above the name label (y=4.2)
+    add_child(_shield_badge)
+    var mi := MeshInstance3D.new()
+    var disc := CylinderMesh.new()
+    disc.top_radius = 0.45
+    disc.bottom_radius = 0.45
+    disc.height = 0.12
+    mi.mesh = disc
+    mi.rotation = Vector3(PI / 2, 0, 0)  # tip the disc forward so the face reads as a shield, not a coin
+    _shield_badge_mat = StandardMaterial3D.new()
+    _shield_badge_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    _shield_badge_mat.albedo_color = Color(0.25, 0.7, 1.0)
+    _shield_badge_mat.emission_enabled = true
+    _shield_badge_mat.emission = Color(0.15, 0.55, 1.0)
+    _shield_badge_mat.emission_energy_multiplier = 1.6
+    mi.material_override = _shield_badge_mat
+    _shield_badge.add_child(mi)

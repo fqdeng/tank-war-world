@@ -21,6 +21,10 @@ var last_acked_input_tick: int = 0  # last client-input tick this server state h
 var ammo_regen_accum: float = 0.0   # server-side: accumulates dt toward +1 ammo
 var is_ai: bool = false             # server-only flag, not networked
 var spawn_invuln_remaining: float = 0.0  # seconds of post-spawn damage immunity
+# Pickup-granted invulnerability. Independent timer from spawn_invuln_remaining;
+# a fresh shield pickup resets this to PICKUP_SHIELD_INVULN_S (no stacking).
+# is_invulnerable() reports OR of the two so damage gates only need one check.
+var shield_invuln_remaining: float = 0.0
 
 # Parts: Part enum int → float sub HP
 var parts: Dictionary = {}
@@ -52,6 +56,9 @@ func is_part_destroyed(p: int) -> bool:
     if not parts.has(p):
         return false
     return parts[p] <= 0.0
+
+func is_invulnerable() -> bool:
+    return spawn_invuln_remaining > 0.0 or shield_invuln_remaining > 0.0
 
 func can_fire() -> bool:
     # Ammo is infinite; reload cooldown is the only rate limit.

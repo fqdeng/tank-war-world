@@ -94,3 +94,22 @@ const SCOPE_FOV_2X: float = 40.0
 const SCOPE_FOV_4X: float = 20.0
 const SCOPE_FOV_8X: float = 10.0
 const SCOPE_ZOOMS: Array = [2, 4, 8]
+
+# --- Pickups ---
+# Every PICKUP_REFRESH_INTERVAL_S the server wipes any leftover pickups and
+# spawns a fresh batch (PICKUP_HEART_COUNT hearts + PICKUP_SHIELD_COUNT shields)
+# at random positions inside [PICKUP_SPAWN_MARGIN_M, WORLD_SIZE_M - margin].
+# The margin keeps pickups well clear of the boundary mountain ring (≈80m band)
+# so they aren't unreachable. A tank within PICKUP_PICKUP_RADIUS_M (xz only)
+# of a pickup consumes it: heart restores HP + parts to full, shield grants
+# PICKUP_SHIELD_INVULN_S of damage immunity (a second shield resets the timer
+# rather than stacking).
+const PICKUP_REFRESH_INTERVAL_S: float = 60.0
+const PICKUP_HEART_COUNT: int = 5
+const PICKUP_SHIELD_COUNT: int = 5
+const PICKUP_SHIELD_INVULN_S: float = 15.0
+const PICKUP_PICKUP_RADIUS_M: float = 3.0
+const PICKUP_SPAWN_MARGIN_M: float = 100.0
+# Pickup kind IDs — wire format. Stable; never reorder.
+const PICKUP_KIND_HEART: int = 0
+const PICKUP_KIND_SHIELD: int = 1

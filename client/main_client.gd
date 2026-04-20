@@ -4,6 +4,7 @@ extends Node3D
 const WSClient = preload("res://client/net/ws_client.gd")
 const TerrainBuilder = preload("res://client/world/terrain_builder.gd")
 const ObstacleBuilder = preload("res://client/world/obstacle_builder.gd")
+const PickupView = preload("res://client/world/pickup_view.gd")
 const TankView = preload("res://client/tank/tank_view.gd")
 const ThirdPersonCam = preload("res://client/camera/third_person_cam.gd")
 const TankInput = preload("res://client/input/tank_input.gd")
@@ -25,6 +26,7 @@ var _ws
 var _pending_player_name: String = ""
 var _terrain_builder
 var _obstacle_builder
+var _pickup_view
 var _camera
 var _input
 var _hud
@@ -91,6 +93,8 @@ func _ready() -> void:
     add_child(_terrain_builder)
     _obstacle_builder = ObstacleBuilder.new()
     add_child(_obstacle_builder)
+    _pickup_view = PickupView.new()
+    add_child(_pickup_view)
 
     _camera = ThirdPersonCam.new()
     add_child(_camera)
@@ -170,6 +174,14 @@ func _on_message(msg_type: int, payload: PackedByteArray) -> void:
             _obstacle_builder.destroy_obstacle(od.obstacle_id)
             if _prediction:
                 _prediction.mark_obstacle_destroyed(od.obstacle_id)
+        MessageType.PICKUP_SPAWNED:
+            var ps = Messages.PickupSpawned.decode(payload)
+            if _pickup_view:
+                _pickup_view.spawn(ps.pickup_id, ps.kind, ps.pos)
+        MessageType.PICKUP_CONSUMED:
+            var pc = Messages.PickupConsumed.decode(payload)
+            if _pickup_view:
+                _pickup_view.consume(pc.pickup_id)
         MessageType.PONG:
             _handle_pong(Messages.Pong.decode(payload))
 
@@ -179,6 +191,10 @@ func _handle_connect_ack(msg) -> void:
     _terrain_builder.build(msg.world_seed)
     _obstacle_builder.build(msg.world_seed, _terrain_builder.heightmap, _terrain_builder.terrain_size, msg.destroyed_obstacle_ids)
     _camera.set_heightmap(_terrain_builder.heightmap, _terrain_builder.terrain_size)
+    if _pickup_view:
+        _pickup_view.set_terrain(_terrain_builder.heightmap, _terrain_builder.terrain_size)
+        for entry in msg.pickups:
+            _pickup_view.spawn(entry.pickup_id, entry.kind, entry.pos)
     # Initialize client-side prediction for own tank.
     var ls := TankState.new()
     ls.player_id = msg.player_id
@@ -210,6 +226,9 @@ func _handle_snapshot(msg) -> void:
         if t.player_id == _my_player_id:
             _ensure_view(t.player_id, t.team, true)
             _tanks[t.player_id].set_display_name(t.display_name)
+            _tanks[t.player_id].set_shield_active(t.shield_invuln_remaining > 0.0)
+            if _hud:
+                _hud.set_shield_countdown(t.shield_invuln_remaining)
             if _prediction:
                 _prediction.reconcile(t.pos, t.yaw, t.turret_yaw, t.gun_pitch, t.hp, t.last_input_tick, t.ammo, t.reload_remaining)
                 # Sync turret destruction from the snapshot so can_fire() gates the
@@ -228,6 +247,7 @@ func _handle_snapshot(msg) -> void:
         else:
             _ensure_view(t.player_id, t.team, false)
             _tanks[t.player_id].set_display_name(t.display_name)
+            _tanks[t.player_id].set_shield_active(t.shield_invuln_remaining > 0.0)
             if not _remote_interp.has(t.player_id):
                 _remote_interp[t.player_id] = Interpolation.new()
             # Push using the server's send time, not our receive time. Network

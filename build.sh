@@ -19,8 +19,8 @@ ORIG_FONT="$FONT_DIR/NotoSansSC-Regular.full.otf"
 OUT_FONT="$FONT_DIR/NotoSansSC-Regular.otf"
 
 # Every CJK character currently rendered by client/hud/*.gd.
-# Sources (greppable): "炮管损坏", "重生", "阵亡", "击中了", "装填", "就绪".
-SUBSET_CJK_TEXT="炮管损坏重生阵亡击中了装填就绪"
+# Sources (greppable): "炮管损坏", "重生", "阵亡", "击中了", "装填", "就绪", "护盾".
+SUBSET_CJK_TEXT="炮管损坏重生阵亡击中了装填就绪护盾"
 
 # Unicode ranges kept verbatim:
 #   U+0020-007E  basic ASCII (labels, digits, punctuation, %, —, x, +)

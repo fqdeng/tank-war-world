@@ -14,6 +14,7 @@ extends CanvasLayer
 @onready var _kill_label: Label = $KillLabel
 @onready var _respawn_label: Label = $RespawnLabel
 @onready var _turret_damage_label: Label = $TurretDamageLabel
+@onready var _shield_label: Label = $ShieldLabel
 @onready var _net_stats: Label = $NetStatsLabel
 var _hit_tween: Tween
 var _kill_tween: Tween
@@ -55,6 +56,17 @@ func set_turret_damaged(seconds: float) -> void:
     else:
         _turret_damage_label.visible = false
         _turret_damage_label.text = ""
+
+# Shown while the local tank has an active shield pickup. Pass 0 to hide.
+func set_shield_countdown(seconds: float) -> void:
+    if _shield_label == null:
+        return
+    if seconds > 0.0:
+        _shield_label.text = "护盾 %.1fs" % seconds
+        _shield_label.visible = true
+    else:
+        _shield_label.visible = false
+        _shield_label.text = ""
 
 # Big center-screen overlay shown during respawn. Pass 0 (or negative) to hide.
 func set_respawn_countdown(seconds: float) -> void:
