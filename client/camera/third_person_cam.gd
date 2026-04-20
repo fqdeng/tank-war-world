@@ -41,5 +41,9 @@ func _process(delta: float) -> void:
         var th: float = TerrainGenerator.sample_height(_heightmap, _terrain_size, desired.x, desired.z)
         if desired.y < th + min_clearance_above_terrain:
             desired.y = th + min_clearance_above_terrain
-    global_position = global_position.lerp(desired, clamp(smooth * delta, 0, 1))
+    # Frame-rate-independent exp decay. The old `clamp(smooth*delta, 0, 1)` is
+    # only approximate — when render delta jitters, the decay factor jitters
+    # with it, so the camera's tracking lag wobbles each frame and the tracked
+    # tank appears to stutter along its motion axis.
+    global_position = global_position.lerp(desired, 1.0 - exp(-smooth * delta))
     look_at(tgt_pos + Vector3(0, 1.5, 0), Vector3.UP)
