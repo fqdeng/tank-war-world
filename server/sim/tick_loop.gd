@@ -177,6 +177,7 @@ func _on_client_disconnected(peer_id: int) -> void:
     _respawns.erase(pid)
     _ws_server.unbind_peer(peer_id)
     print("[Server] Player %d (peer %d) disconnected" % [pid, peer_id])
+    _maintain_ai_population()
 
 func _on_input_received(peer_id: int, input_msg) -> void:
     var pid: int = _ws_server.player_id_for_peer(peer_id)
