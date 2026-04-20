@@ -6,6 +6,7 @@ extends Control
 @onready var _ammo_label: Label = $AmmoLabel
 @onready var _pitch_label: Label = $PitchLabel
 @onready var _reload: ProgressBar = $ReloadBar
+@onready var _reload_text: Label = $ReloadBar/ReloadText
 @onready var _hit_label: Label = $HitLabel
 @onready var _kill_label: Label = $KillLabel
 @onready var _turret_damage_label: Label = $TurretDamageLabel
@@ -36,6 +37,11 @@ func set_reload(remaining_s: float, total_s: float) -> void:
         return
     var frac: float = 1.0 - clamp(remaining_s / total_s, 0.0, 1.0)
     _reload.value = frac
+    if _reload_text:
+        if remaining_s > 0.0:
+            _reload_text.text = "装填 %.1fs" % remaining_s
+        else:
+            _reload_text.text = "就绪"
 
 func set_turret_damaged(seconds: float) -> void:
     if _turret_damage_label == null:
