@@ -12,6 +12,11 @@ extends Control
 @onready var _turret_damage_label: Label = $TurretDamageLabel
 var _hit_tween: Tween
 var _kill_tween: Tween
+var _reload_frac: float = 1.0
+var _ready_flash_until_msec: int = 0
+const _RELOAD_ARC_RADIUS_PX: float = 36.0
+const _RELOAD_ARC_WIDTH_PX: float = 4.0
+const _READY_FLASH_MS: int = 400
 
 func set_zoom(z: int) -> void:
     if _zoom_label:
@@ -42,6 +47,16 @@ func set_reload(remaining_s: float, total_s: float) -> void:
             _reload_text.text = "装填 %.1fs" % remaining_s
         else:
             _reload_text.text = "就绪"
+    # Arc: detect ready transition (frac crossed to 1.0 this call).
+    var was_loading: bool = _reload_frac < 1.0
+    var is_ready: bool = frac >= 1.0
+    if was_loading and is_ready:
+        _ready_flash_until_msec = Time.get_ticks_msec() + _READY_FLASH_MS
+    if abs(frac - _reload_frac) > 0.01 or was_loading != is_ready:
+        _reload_frac = frac
+        queue_redraw()
+    else:
+        _reload_frac = frac
 
 func set_turret_damaged(seconds: float) -> void:
     if _turret_damage_label == null:
@@ -74,6 +89,13 @@ func show_kill(victim_id: int) -> void:
     _kill_tween = create_tween()
     _kill_tween.tween_interval(1.2)
     _kill_tween.tween_property(_kill_label, "modulate:a", 0.0, 0.6)
+
+func _process(_dt: float) -> void:
+    if _ready_flash_until_msec > 0:
+        var now: int = Time.get_ticks_msec()
+        if now >= _ready_flash_until_msec:
+            _ready_flash_until_msec = 0
+        queue_redraw()
 
 func _draw() -> void:
     var w: float = size.x
@@ -122,6 +144,7 @@ func _draw() -> void:
         var dw: float = 18.0 + float(d - 400) * 0.022  # wider ticks for longer ranges
         draw_line(Vector2(cx - dw, dy), Vector2(cx + dw, dy), yellow, 1.0)
         draw_string(font, Vector2(cx + dw + 6, dy + 4), "%dm" % d, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, yellow)
+    _draw_reload_arc(cx, cy)
 
 # Pixel drop below the crosshair for a given range in meters. Quadratic fit
 # was hand-calibrated at v=200 m/s. Drop angle scales as ~1/v² for shallow
@@ -157,3 +180,20 @@ func _draw_circular_vignette(w: float, h: float, cx: float, cy: float, r: float)
             pts.append(Vector2(cx + cos(a) * r, cy + sin(a) * r))
         pts.append(q["e1"])
         draw_colored_polygon(pts, black)
+
+func _draw_reload_arc(cx: float, cy: float) -> void:
+    var r: float = _RELOAD_ARC_RADIUS_PX
+    var w: float = _RELOAD_ARC_WIDTH_PX
+    var center := Vector2(cx, cy)
+    # Background ring — always drawn.
+    draw_arc(center, r, 0.0, TAU, 64, Color(1.0, 1.0, 1.0, 0.2), w, true)
+    var now: int = Time.get_ticks_msec()
+    var flashing: bool = now < _ready_flash_until_msec
+    if flashing:
+        draw_arc(center, r, 0.0, TAU, 64, Color(0.4, 1.0, 0.5, 0.9), w, true)
+        return
+    if _reload_frac >= 1.0:
+        return  # idle — background ring only
+    var start: float = -PI * 0.5
+    var end: float = start + _reload_frac * TAU
+    draw_arc(center, r, start, end, 64, Color(1.0, 0.7, 0.2, 0.9), w, true)
