@@ -11,6 +11,7 @@ const PartDamage = preload("res://shared/combat/part_damage.gd")
 const ShellSim = preload("res://server/combat/shell_sim.gd")
 const AIBrain = preload("res://server/ai/ai_brain.gd")
 const TankCollision = preload("res://shared/world/tank_collision.gd")
+const NameSanitizer = preload("res://server/util/name_sanitizer.gd")
 
 const TARGET_TOTAL_TANKS: int = 10  # fill with AI until this many alive tanks exist
 const MATCH_KILL_TARGET: int = 100  # first team to this many kills wins — game restarts
@@ -142,7 +143,7 @@ func _step_tick(dt: float) -> void:
         var s = _world.tanks[pid]
         if s.alive:
             var turret_regen: float = float(s.part_regen_remaining.get(TankState.Part.TURRET, 0.0))
-            snap.add_tank(s.player_id, s.team, s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp, s.last_acked_input_tick, s.ammo, s.reload_remaining, turret_regen)
+            snap.add_tank(s.player_id, s.team, s.pos, s.yaw, s.turret_yaw, s.gun_pitch, s.hp, s.last_acked_input_tick, s.ammo, s.reload_remaining, turret_regen, s.display_name)
     snap.team_kills_0 = int(_team_kills.get(0, 0))
     snap.team_kills_1 = int(_team_kills.get(1, 0))
     _ws_server.broadcast(MessageType.SNAPSHOT, snap.encode())
@@ -154,6 +155,7 @@ func _on_client_connected(peer_id: int, connect_msg) -> void:
         team = (pid % 2)
     _ws_server.bind_peer_to_player(peer_id, pid)
     var state = _world.spawn_tank(pid, team)
+    state.display_name = NameSanitizer.sanitize(connect_msg.player_name, pid)
     print("[Server] Player %d (peer %d) joined team %d" % [pid, peer_id, team])
     var ack := Messages.ConnectAck.new()
     ack.player_id = pid
@@ -246,6 +248,7 @@ func _spawn_ai(team: int) -> void:
     var pid: int = _world.allocate_player_id()
     var st = _world.spawn_tank(pid, team)
     st.is_ai = true
+    st.display_name = "P" + str(pid)
     var brain := AIBrain.new()
     brain.setup(pid, _world)
     _ai_brains[pid] = brain
