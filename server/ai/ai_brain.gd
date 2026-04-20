@@ -273,7 +273,7 @@ func _line_blocked_by_large_rock(from: Vector3, to: Vector3, world) -> bool:
 # turn: signed steering offset (radians-ish, scaled by AVOID_K by caller).
 # max_urgency: 0..~1, used by caller to decide whether to throttle forward speed.
 func _compute_avoid_turn(state: TankState, world) -> Dictionary:
-    # Forward and right in world. Tank yaw convention (see ai_brain.gd L84):
+    # Forward and right in world. Tank yaw convention (see desired_yaw in step()):
     # desired_yaw = atan2(-dx, -dz), so at yaw=0 the tank faces -Z and
     # pilot's right is +X. Derivation: right = forward × up.
     var fwd_x: float = -sin(state.yaw)
