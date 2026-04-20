@@ -199,6 +199,13 @@ func _handle_snapshot(msg) -> void:
             _ensure_view(t.player_id, t.team, true)
             if _prediction:
                 _prediction.reconcile(t.pos, t.yaw, t.turret_yaw, t.gun_pitch, t.hp, t.last_input_tick, t.ammo, t.reload_remaining)
+                # Sync turret destruction from the snapshot so can_fire() gates the
+                # client-authoritative fire path. turret_regen_remaining > 0 == broken.
+                var ps_local = _prediction.state()
+                if t.turret_regen_remaining > 0.0:
+                    ps_local.parts[TankState.Part.TURRET] = 0.0
+                else:
+                    ps_local.parts[TankState.Part.TURRET] = ps_local.parts_max.get(TankState.Part.TURRET, 0.0)
             _camera.set_target(_tanks[t.player_id])
             _hud.set_hp(t.hp)
             if _hud:
@@ -467,10 +474,11 @@ func _physics_process(delta: float) -> void:
         _ws.send(MessageType.INPUT, inp.encode())
     _maybe_send_ping()
     if _input.consume_fire():
-        # Reload is enforced on the client now that firing is client-authoritative;
-        # the server no longer stamps reload_remaining on FIRE for humans. Drop the
-        # shot silently if we're still reloading so rapid-click doesn't skip the gate.
-        if _prediction != null and _prediction.state().reload_remaining > 0.0:
+        # Reload + turret-damage are both enforced on the client now that firing is
+        # client-authoritative; the server no longer gates FIRE for humans. Drop the
+        # shot silently (reload, broken turret, or dead) so rapid-click can't sneak
+        # past the gate.
+        if _prediction != null and not _prediction.state().can_fire():
             pass
         else:
             var fire := Messages.Fire.new()

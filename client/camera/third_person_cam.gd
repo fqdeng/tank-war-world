@@ -20,12 +20,18 @@ func set_heightmap(hm: PackedFloat32Array, size: int) -> void:
     _heightmap = hm
     _terrain_size = size
 
-func _process(delta: float) -> void:
+func _physics_process(delta: float) -> void:
+    # Smoothing is done at physics-tick cadence (stable dt) instead of _process
+    # (render dt, which jitters with vsync/GC). Combined with the cam's
+    # physics_interpolation_mode = INHERIT, Godot interpolates the cam pose
+    # between physics frames at render time — same mechanism that keeps the
+    # tank body smooth. Previously the cam wrote in _process with interp=OFF,
+    # so render-rate hitches translated directly into visible camera jumps.
     if _target == null:
         return
-    # Use the visually-interpolated transform so the camera tracks the smoothed
-    # render pose (not the raw physics-tick pose that jumps at 60Hz).
-    var tgt_xf: Transform3D = _target.get_global_transform_interpolated()
+    # Physics-current target pose (no render-time interpolation here — we want
+    # deterministic input for the filter; Godot interpolates the output).
+    var tgt_xf: Transform3D = _target.global_transform
     var tgt_pos: Vector3 = tgt_xf.origin
     var body_yaw: float = tgt_xf.basis.get_euler().y
     # Follow the turret: combine body yaw with turret-local yaw so the camera
@@ -41,9 +47,7 @@ func _process(delta: float) -> void:
         var th: float = TerrainGenerator.sample_height(_heightmap, _terrain_size, desired.x, desired.z)
         if desired.y < th + min_clearance_above_terrain:
             desired.y = th + min_clearance_above_terrain
-    # Frame-rate-independent exp decay. The old `clamp(smooth*delta, 0, 1)` is
-    # only approximate — when render delta jitters, the decay factor jitters
-    # with it, so the camera's tracking lag wobbles each frame and the tracked
-    # tank appears to stutter along its motion axis.
+    # Frame-rate-independent exp decay. Stable dt here → the filter's discrete
+    # steps are deterministic.
     global_position = global_position.lerp(desired, 1.0 - exp(-smooth * delta))
     look_at(tgt_pos + Vector3(0, 1.5, 0), Vector3.UP)
