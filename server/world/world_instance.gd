@@ -20,6 +20,19 @@ var _next_player_id: int = 1
 # Tick counter (set by TickLoop)
 var current_tick: int = 0
 
+# Sim-clock epoch (wall ms) — stamped once when TickLoop starts. All outbound
+# timestamps (SNAPSHOT.server_time_ms, PONG.server_time_ms) are expressed
+# relative to this so the client's interpolation buffer sees strictly-spaced
+# stamps: snapshot stamps are sim-tick-time (_tick * 50), PONG stamps are
+# wall-time-since-epoch — same timeline, different resolutions.
+var _sim_epoch_ms: int = 0
+
+func start_sim_clock() -> void:
+    _sim_epoch_ms = Time.get_ticks_msec()
+
+func sim_clock_ms() -> int:
+    return Time.get_ticks_msec() - _sim_epoch_ms
+
 # Obstacle state (Plan 04)
 # obstacle_id → current HP (absent = intact at max)
 var obstacle_hp: Dictionary = {}

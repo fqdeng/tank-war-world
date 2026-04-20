@@ -66,7 +66,12 @@ func _handle_packet(peer_id: int, packet: PackedByteArray) -> void:
             var ping := Messages.Ping.decode(env.payload)
             var pong := Messages.Pong.new()
             pong.client_time_ms = ping.client_time_ms
-            pong.server_time_ms = Time.get_ticks_msec()
+            # Use the shared sim clock (wall-ms since tick loop started), not
+            # raw Time.get_ticks_msec(). SNAPSHOT stamps use the same epoch via
+            # _tick * 50, so both arrival paths feed the client offset EMA on
+            # the same timeline; otherwise snapshot and PONG updates fight
+            # each other and the estimate never settles.
+            pong.server_time_ms = _world.sim_clock_ms() if _world != null else Time.get_ticks_msec()
             send_to_peer(peer_id, MessageType.PONG, pong.encode())
         MessageType.DISCONNECT:
             emit_signal("client_disconnected", peer_id)
