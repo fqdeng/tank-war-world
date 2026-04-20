@@ -6,6 +6,7 @@ extends CanvasLayer
 @onready var _id: Label = $IdLabel
 @onready var _ammo: Label = $AmmoLabel
 @onready var _reload: ProgressBar = $ReloadBar
+@onready var _reload_text: Label = $ReloadBar/ReloadText
 @onready var radar: Control = $Radar
 @onready var _scoreboard: RichTextLabel = $ScoreboardLabel
 @onready var _combat_log: VBoxContainer = $CombatLog
@@ -145,6 +146,11 @@ func set_reload(remaining_s: float, total_s: float) -> void:
         return
     var frac: float = 1.0 - clamp(remaining_s / total_s, 0.0, 1.0)
     _reload.value = frac
+    if _reload_text:
+        if remaining_s > 0.0:
+            _reload_text.text = "装填 %.1fs" % remaining_s
+        else:
+            _reload_text.text = "就绪"
 
 # Bottom-right network overlay. ping_ms comes from the RTT EMA (RFC6298-style);
 # up/down are payload byte counts over a rolling 1 s window (WebSocket frame
