@@ -22,6 +22,7 @@ const SoundBank = preload("res://client/audio/sound_bank.gd")
 @export var server_url: String = "wss://tank.fqdeng.com"
 
 var _ws
+var _pending_player_name: String = ""
 var _terrain_builder
 var _obstacle_builder
 var _camera
@@ -82,12 +83,9 @@ func _ready() -> void:
     env.environment = e
     add_child(env)
 
-    _ws = WSClient.new()
-    add_child(_ws)
-    _ws.connected.connect(_on_connected)
-    _ws.message.connect(_on_message)
-    _ws.disconnected.connect(_on_disconnected)
-    _ws.connect_to_url(server_url)
+    var menu = preload("res://client/menu/name_entry.tscn").instantiate()
+    menu.joined.connect(_on_name_chosen)
+    add_child(menu)
 
     _terrain_builder = TerrainBuilder.new()
     add_child(_terrain_builder)
@@ -129,10 +127,19 @@ func _ready() -> void:
 func _derive_web_server_url() -> String:
     return "wss://tank.fqdeng.com"
 
+func _on_name_chosen(player_name: String) -> void:
+    _pending_player_name = player_name
+    _ws = WSClient.new()
+    add_child(_ws)
+    _ws.connected.connect(_on_connected)
+    _ws.message.connect(_on_message)
+    _ws.disconnected.connect(_on_disconnected)
+    _ws.connect_to_url(server_url)
+
 func _on_connected() -> void:
     print("[Client] WebSocket connected. Sending CONNECT.")
     var msg := Messages.Connect.new()
-    msg.player_name = "Player"
+    msg.player_name = _pending_player_name
     msg.preferred_team = -1
     _ws.send(MessageType.CONNECT, msg.encode())
 
