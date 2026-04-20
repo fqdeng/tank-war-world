@@ -214,8 +214,46 @@ func _estimate_pitch(horiz_dist: float, dy: float) -> float:
 func _pick_new_waypoint(world) -> void:
     var margin: float = Constants.PLAYABLE_MARGIN_M + 20.0
     var size: float = float(world.terrain_size)
-    var x: float = _rng.randf_range(margin, size - margin)
-    var z: float = _rng.randf_range(margin, size - margin)
-    _waypoint = Vector3(x, 0.0, z)
+    var chosen: Vector3 = Vector3.ZERO
+    var have_chosen: bool = false
+    for i in range(6):
+        var x: float = _rng.randf_range(margin, size - margin)
+        var z: float = _rng.randf_range(margin, size - margin)
+        var cand := Vector3(x, 0.0, z)
+        chosen = cand
+        have_chosen = true
+        if not _line_blocked_by_large_rock(_prev_pos if _has_prev_pos else cand, cand, world):
+            break
+    if not have_chosen:
+        # Unreachable — loop always sets chosen at least once. Guard kept for clarity.
+        chosen = Vector3(margin, 0.0, margin)
+    _waypoint = chosen
     _repath_timer = _rng.randf_range(6.0, 12.0)
+
+# Straight-line blocker check: only LARGE_ROCK (kind == 1) vetoes a waypoint.
+# Trees (kind 2) and small rocks (kind 0) can be pushed through by a tank and
+# should not force repath churn.
+func _line_blocked_by_large_rock(from: Vector3, to: Vector3, world) -> bool:
+    var dx: float = to.x - from.x
+    var dz: float = to.z - from.z
+    var len_sq: float = dx * dx + dz * dz
+    if len_sq < 0.01:
+        return false
+    for o in world.obstacles:
+        if o.kind != 1:
+            continue
+        if world.is_obstacle_destroyed(o.id):
+            continue
+        var r: float = Constants.OBSTACLE_RADIUS_LARGE_ROCK + Constants.TANK_COLLISION_RADIUS
+        var ox: float = o.pos.x - from.x
+        var oz: float = o.pos.z - from.z
+        var dot: float = ox * dx + oz * dz
+        if dot < 0.0 or dot > len_sq:
+            continue
+        var t: float = dot / len_sq
+        var px: float = ox - dx * t
+        var pz: float = oz - dz * t
+        if px * px + pz * pz < r * r:
+            return true
+    return false
 
