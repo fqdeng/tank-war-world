@@ -35,6 +35,8 @@ var _remote_interp: Dictionary = {}  # player_id → Interpolation
 var _scope_cam
 var _scope_overlay
 var _in_scope: bool = false
+# Throttled counter for [Scope] diagnostics; prints every N render frames while in scope.
+var _scope_log_counter: int = 0
 # Wall-clock deadline (ms) for local respawn; 0 when alive. Used for the
 # on-screen countdown — server doesn't echo a duration, but RESPAWN_COOLDOWN_S
 # is the contract so we derive it locally at death.
@@ -231,6 +233,13 @@ func _enter_scope() -> void:
     if _tanks.has(_my_player_id):
         _tanks[_my_player_id].visible = false
     _input.set_scope_zoom(float(_scope_cam.current_zoom()))
+    _scope_log_counter = 0
+    var ps = _prediction.state() if _prediction != null else null
+    print("[Scope] ENTER turret_yaw=%.3f gun_pitch=%.3f cam_current=%s" % [
+        ps.turret_yaw if ps else 0.0,
+        ps.gun_pitch if ps else 0.0,
+        str(_scope_cam.current)
+    ])
 
 func _exit_scope() -> void:
     if not _in_scope:
@@ -266,8 +275,14 @@ func _ensure_scope_cam() -> void:
     # space = (0, 1.4, -1.1). So cam local (relative to _barrel) = (0, 0.2, -1.0)
     # lands at tank (0, 1.6, -2.1), 0.4 m behind shell origin on the same axis.
     _scope_cam.position = Vector3(0, 0.2, -1.0)
+    # Skip Godot's physics_interpolation on the scope cam: its world transform
+    # is fully determined by the (interpolated) barrel parent, and a freshly-
+    # added child starts with an uninitialized prev-frame cache that freezes
+    # the rendered view for a tick. See fix for "mouse unresponsive in FPV".
+    _scope_cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
     barrel.add_child(_scope_cam)
     _scope_overlay.get_node("Reticle").set_zoom(_scope_cam.current_zoom())
+    print("[Scope] cam attached to barrel, interp_mode=OFF parent=%s" % barrel.name)
 
 func _raycast_terrain_distance(origin: Vector3, dir: Vector3) -> float:
     if _terrain_builder == null or _terrain_builder.heightmap.size() == 0:
@@ -505,6 +520,17 @@ func _process(_delta: float) -> void:
             var origin: Vector3 = _scope_cam.global_position
             var fwd: Vector3 = -_scope_cam.global_transform.basis.z
             reticle.set_distance(_raycast_terrain_distance(origin, fwd))
+            # Every ~30 render frames (~0.5s @ 60Hz): log state → input → cam
+            # so we can see whether the scope cam is actually following the
+            # barrel when the mouse moves. If turret_yaw/gun_pitch change but
+            # fwd doesn't, the cam's transform is stale (physics_interp cache).
+            _scope_log_counter += 1
+            if _scope_log_counter % 30 == 0:
+                print("[Scope] tick #%d turret_yaw=%.3f gun_pitch=%.3f cam_fwd=(%.3f,%.3f,%.3f)" % [
+                    _scope_log_counter,
+                    s.turret_yaw, s.gun_pitch,
+                    fwd.x, fwd.y, fwd.z
+                ])
     # Remote tanks: sample interp buffer using the estimated server clock.
     # Matching the buffer's time base (server send-time) means lerp steps are
     # driven by the server's strict 20 Hz spacing, not by arrival jitter.
