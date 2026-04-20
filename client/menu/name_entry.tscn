@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3 uid="uid://b7namentry00001"]
+[gd_scene load_steps=3 format=3 uid="uid://b7namentry00001"]
 
 [ext_resource type="Script" path="res://client/menu/name_entry.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://client/assets/icons/dice.png" id="2_dice"]
 
 [node name="NameEntry" type="Control"]
 anchors_preset = 15
@@ -8,13 +9,14 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 0
 script = ExtResource("1_script")
 
 [node name="Backdrop" type="ColorRect" parent="."]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.05, 0.05, 0.08, 0.9)
+color = Color(0, 0, 0, 1)
 
 [node name="Center" type="CenterContainer" parent="."]
 anchors_preset = 15
@@ -22,27 +24,30 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 
 [node name="VBox" type="VBoxContainer" parent="Center"]
-custom_minimum_size = Vector2(420, 0)
-theme_override_constants/separation = 20
+custom_minimum_size = Vector2(1680, 0)
+theme_override_constants/separation = 80
 
 [node name="Title" type="Label" parent="Center/VBox"]
 text = "Enter Name"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 48
+theme_override_font_sizes/font_size = 192
 
 [node name="Row" type="HBoxContainer" parent="Center/VBox"]
-theme_override_constants/separation = 12
+theme_override_constants/separation = 48
 
 [node name="NameField" type="LineEdit" parent="Center/VBox/Row"]
-custom_minimum_size = Vector2(280, 56)
+custom_minimum_size = Vector2(1120, 224)
 size_flags_horizontal = 3
 max_length = 12
 placeholder_text = "name..."
+theme_override_font_sizes/font_size = 96
 
 [node name="DiceButton" type="Button" parent="Center/VBox/Row"]
-custom_minimum_size = Vector2(56, 56)
-text = "🎲"
+custom_minimum_size = Vector2(224, 224)
+icon = ExtResource("2_dice")
+expand_icon = true
 
 [node name="JoinButton" type="Button" parent="Center/VBox"]
-custom_minimum_size = Vector2(0, 56)
+custom_minimum_size = Vector2(0, 224)
 text = "Join Battle"
+theme_override_font_sizes/font_size = 96
