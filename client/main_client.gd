@@ -114,10 +114,10 @@ func _ready() -> void:
     _input.scope_changed.connect(_on_scope_changed)
     _input.zoom_cycled.connect(_on_zoom_cycled)
 
-    _hud = BasicHUD.instantiate()
-    add_child(_hud)
-    _scope_overlay = ScopeOverlay.instantiate()
-    add_child(_scope_overlay)
+    # HUD + scope overlay are built after the player joins so the name-entry
+    # screen shows nothing but its own opaque backdrop — BasicHUD is a
+    # CanvasLayer (layer=1) and would otherwise render the radar/status/
+    # scoreboard labels *above* the name_entry Control.
 
     _fire_stream = SoundBank.make_fire_shot()
     _hit_stream = SoundBank.make_hit_clang()
@@ -129,6 +129,10 @@ func _derive_web_server_url() -> String:
 
 func _on_name_chosen(player_name: String) -> void:
     _pending_player_name = player_name
+    _hud = BasicHUD.instantiate()
+    add_child(_hud)
+    _scope_overlay = ScopeOverlay.instantiate()
+    add_child(_scope_overlay)
     _ws = WSClient.new()
     add_child(_ws)
     _ws.connected.connect(_on_connected)
