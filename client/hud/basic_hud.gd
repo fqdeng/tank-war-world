@@ -158,7 +158,7 @@ func set_reload(remaining_s: float, total_s: float) -> void:
 func set_net_stats(ping_ms: float, up_bps: int, down_bps: int) -> void:
     if _net_stats == null:
         return
-    # ASCII only — the web font subset (tools/subset_font.sh) excludes arrow
+    # ASCII only — the web font subset (build.sh) excludes arrow
     # glyphs, so avoid ↑/↓ here or they render as tofu on the browser build.
     var ping_str: String = "--" if ping_ms <= 0.0 else "%d ms" % int(round(ping_ms))
     _net_stats.text = "PING %s\nTX  %s\nRX  %s" % [ping_str, _fmt_bps(up_bps), _fmt_bps(down_bps)]

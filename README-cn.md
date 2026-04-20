@@ -54,28 +54,20 @@ cd /path/to/tank-war-world
 
 ## 3. 网页客户端
 
-### 3a. 裁剪中文字体（每次构建前都要跑一遍）
-
-`client/assets/fonts/NotoSansSC-Regular.otf` 是完整的思源黑体（约 8 MB）。下面这个脚本会把它裁剪成只保留 UI 实际用到的字符（约 68 KB，压缩 99%），对网页包体积提升极大。**每次构建网页客户端之前都先跑一遍**；之后只要在客户端 UI 里加了新的中文字符也要重跑。
+### 3a. 构建网页包
 
 ```bash
 cd /path/to/tank-war-world
-tools/subset_font.sh
+./build.sh
 ```
 
-如果新增了中文文案，先把新字符加到 `tools/subset_font.sh` 里的 `SUBSET_CJK_TEXT` 变量，然后再跑脚本。
+`build.sh` 会依次完成三件事：
 
-### 3b. 导出网页包（首次构建，或者客户端代码改动后重新构建）
+1. **裁剪中文字体**。`client/assets/fonts/NotoSansSC-Regular.otf` 是完整的思源黑体（约 8 MB），脚本会把它裁剪成只保留 UI 实际用到的字符（约 68 KB，压缩 99%）。如果新增了中文文案，先把新字符追加到 `build.sh` 顶部的 `SUBSET_CJK_TEXT` 变量里，再执行脚本。
+2. **执行 Godot 网页导出**，生成 `build/web/{index.html, index.pck, index.wasm, index.js, index.audio.worklet.js}`。导出预设（`export_presets.cfg`）会把 `server/`、`tests/`、`docs/`、GUT 插件排除在外。
+3. **预压缩** `index.wasm` / `index.js` / `index.pck`，输出 `.gz` 和 `.br` 兄弟文件，这样 nginx 可以通过 `gzip_static` / `brotli_static` 直接出文件，不必每次请求时再压。
 
-```bash
-cd /path/to/tank-war-world
-/Applications/Godot.app/Contents/MacOS/Godot --headless \
-  --export-release "Web" build/web/index.html
-```
-
-会生成 `build/web/{index.html, index.pck, index.wasm, index.js, index.audio.worklet.js}`。导出预设（`export_presets.cfg`）会把 `server/`、`tests/`、`docs/`、GUT 插件排除在外。
-
-### 3c. 本地起网页服务器
+### 3b. 本地起网页服务器
 
 浏览器不能从 `file://` 加载 `.wasm`，必须走 HTTP：
 
@@ -83,7 +75,7 @@ cd /path/to/tank-war-world
 python3 -m http.server --directory build/web 8000
 ```
 
-### 3d. 打开游戏
+### 3c. 打开游戏
 
 浏览器访问：
 

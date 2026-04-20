@@ -19,7 +19,7 @@ If port 8910 is held: `lsof -iTCP:8910 -sTCP:LISTEN` then `kill <pid>`.
 /Applications/Godot.app/Contents/MacOS/Godot client/main_client.tscn
 ```
 
-**Web build** — `./build.sh` wraps `--export-release "Web" build/web/index.html`. `./deploy.sh` builds then serves via `python3 tools/serve_web.py 8000`. **Before every web build**, run `tools/subset_font.sh` — it shrinks `NotoSansSC-Regular.otf` from ~8 MB to ~68 KB by keeping only the glyphs the UI actually renders. If you add new Chinese text to any `Label`/`RichTextLabel`, append those characters to `SUBSET_CJK_TEXT` in that script first.
+**Web build** — `./build.sh` does everything in order: subsets `NotoSansSC-Regular.otf` from ~8 MB down to ~68 KB (only glyphs the UI actually renders), runs `--export-release "Web" build/web/index.html`, then pre-compresses the large artifacts into `.gz`/`.br` siblings. `./deploy.sh` builds then serves via `python3 tools/serve_web.py 8000`. If you add new Chinese text to any `Label`/`RichTextLabel`, append those characters to `SUBSET_CJK_TEXT` near the top of `build.sh` before rebuilding.
 
 **Tests** (GUT, 60 tests across 8 scripts — run before every commit):
 ```bash
@@ -59,5 +59,5 @@ Single test script: add `-gtest=res://tests/test_ballistics.gd`. Single test: ad
 
 - 4-space indentation (see `.editorconfig`). GDScript; typed where it matters, but untyped dicts are common for input snapshots/messages.
 - New Godot files get a paired `.uid`. Don't delete these by hand; Godot regenerates them.
-- `.gitignore` excludes `.godot/`, `build/`, `export/`, and `*.full.otf` (the pristine backup created by `tools/subset_font.sh` — kept locally so re-subsetting stays idempotent).
+- `.gitignore` excludes `.godot/`, `build/`, `export/`, and `*.full.otf` (the pristine backup created by `build.sh`'s subset step — kept locally so re-subsetting stays idempotent).
 - `deploy.server.sh` is a one-liner that just runs the headless server; actual production hosting assumes a TLS-terminating reverse proxy in front (browsers block `ws://` from an `https://` page).
