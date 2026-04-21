@@ -68,7 +68,13 @@ static func read_string(buf: PackedByteArray, cursor: Array) -> String:
     return slice.get_string_from_utf8()
 
 # ---- Envelope ----
-# All network messages are [u8 msg_type][payload].
+# Uncompressed frame: [u8 msg_type][payload]
+# Compressed frame:   [u8 msg_type|0x80][u32 original_size][zstd(payload)]
+# msg_type bit 7 signals compression. Enum values are 0-15 so bit 7 is free.
+
+const COMPRESS_FLAG := 0x80
+const COMPRESS_THRESHOLD := 128
+const COMPRESSION_MODE := FileAccess.COMPRESSION_ZSTD
 
 class Envelope:
     var msg_type: int = 0
@@ -80,8 +86,33 @@ static func write_envelope(msg_type: int, payload: PackedByteArray) -> PackedByt
     buf.append_array(payload)
     return buf
 
+# Same contract as write_envelope but opportunistically ZSTD-compresses payloads
+# above COMPRESS_THRESHOLD. Falls back to the uncompressed path if compression
+# inflates (pathological input).
+static func write_envelope_auto(msg_type: int, payload: PackedByteArray) -> PackedByteArray:
+    if payload.size() < COMPRESS_THRESHOLD:
+        return write_envelope(msg_type, payload)
+    var compressed := payload.compress(COMPRESSION_MODE)
+    # 5 = 1 byte tag + 4 byte original size header; if that exceeds the raw
+    # payload, skip compression.
+    if compressed.size() + 5 >= payload.size() + 1:
+        return write_envelope(msg_type, payload)
+    var buf := PackedByteArray()
+    buf.append((msg_type & 0x7F) | COMPRESS_FLAG)
+    write_u32(buf, payload.size())
+    buf.append_array(compressed)
+    return buf
+
 static func read_envelope(buf: PackedByteArray) -> Envelope:
     var e := Envelope.new()
-    e.msg_type = buf[0]
-    e.payload = buf.slice(1)
+    var raw_type := buf[0]
+    if raw_type & COMPRESS_FLAG == 0:
+        e.msg_type = raw_type
+        e.payload = buf.slice(1)
+        return e
+    e.msg_type = raw_type & 0x7F
+    var cursor := [1]
+    var original_size := read_u32(buf, cursor)
+    var compressed := buf.slice(cursor[0])
+    e.payload = compressed.decompress(original_size, COMPRESSION_MODE)
     return e

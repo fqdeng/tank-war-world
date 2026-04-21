@@ -81,7 +81,7 @@ func _handle_packet(peer_id: int, packet: PackedByteArray) -> void:
 func send_to_peer(peer_id: int, msg_type: int, payload: PackedByteArray) -> void:
     if _peer == null:
         return
-    var framed := Codec.write_envelope(msg_type, payload)
+    var framed := Codec.write_envelope_auto(msg_type, payload)
     _peer.set_target_peer(peer_id)
     _peer.put_packet(framed)
 
@@ -93,7 +93,7 @@ func broadcast(msg_type: int, payload: PackedByteArray) -> void:
     # tick_loop broadcasts every tick → error spam. Skip until someone joins.
     if _peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
         return
-    var framed := Codec.write_envelope(msg_type, payload)
+    var framed := Codec.write_envelope_auto(msg_type, payload)
     _peer.set_target_peer(MultiplayerPeer.TARGET_PEER_BROADCAST)
     _peer.put_packet(framed)
 

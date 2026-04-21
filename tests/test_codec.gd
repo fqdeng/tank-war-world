@@ -66,3 +66,54 @@ func test_envelope_roundtrip() -> void:
     assert_eq(parsed.msg_type, 3)
     var c := [0]
     assert_eq(Codec.read_u32(parsed.payload, c), 12345)
+
+func test_envelope_auto_small_passthrough() -> void:
+    # Under the threshold: auto-path must produce identical bytes to the
+    # uncompressed path so existing wire behavior doesn't regress.
+    var payload := PackedByteArray()
+    for i in 100:
+        Codec.write_u8(payload, i)
+    var framed_auto := Codec.write_envelope_auto(3, payload)
+    var framed_raw := Codec.write_envelope(3, payload)
+    assert_eq(framed_auto, framed_raw)
+    assert_eq(framed_auto[0] & Codec.COMPRESS_FLAG, 0)
+    var parsed := Codec.read_envelope(framed_auto)
+    assert_eq(parsed.msg_type, 3)
+    assert_eq(parsed.payload, payload)
+
+func test_envelope_auto_large_compressed() -> void:
+    # Highly repetitive 1 KB payload — ZSTD must shrink it and set bit 7.
+    var payload := PackedByteArray()
+    for i in 1024:
+        Codec.write_u8(payload, 0x42)
+    var framed := Codec.write_envelope_auto(3, payload)
+    assert_true(framed.size() < payload.size() + 1, "compressed framed should be smaller than raw envelope")
+    assert_eq(framed[0] & Codec.COMPRESS_FLAG, Codec.COMPRESS_FLAG)
+    assert_eq(framed[0] & 0x7F, 3)
+    var parsed := Codec.read_envelope(framed)
+    assert_eq(parsed.msg_type, 3)
+    assert_eq(parsed.payload, payload)
+
+func test_envelope_auto_incompressible_skip() -> void:
+    # Pseudo-random bytes don't compress; the auto-path should detect inflation
+    # and fall back to the uncompressed encoding.
+    var rng := RandomNumberGenerator.new()
+    rng.seed = 0xC0FFEE
+    var payload := PackedByteArray()
+    for i in 1024:
+        Codec.write_u8(payload, rng.randi() & 0xFF)
+    var framed := Codec.write_envelope_auto(3, payload)
+    assert_eq(framed[0] & Codec.COMPRESS_FLAG, 0)
+    var parsed := Codec.read_envelope(framed)
+    assert_eq(parsed.msg_type, 3)
+    assert_eq(parsed.payload, payload)
+
+func test_envelope_auto_msg_type_masking() -> void:
+    # msg_type 3 (SNAPSHOT) compressed → raw byte 0x83; read must strip bit 7.
+    var payload := PackedByteArray()
+    for i in 500:
+        Codec.write_u8(payload, 0xAB)
+    var framed := Codec.write_envelope_auto(MessageType.SNAPSHOT, payload)
+    assert_eq(framed[0], MessageType.SNAPSHOT | Codec.COMPRESS_FLAG)
+    var parsed := Codec.read_envelope(framed)
+    assert_eq(parsed.msg_type, MessageType.SNAPSHOT)
