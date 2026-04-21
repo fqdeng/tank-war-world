@@ -62,15 +62,19 @@ echo "[subset] done: $(printf '%d' "$orig_size") → $(printf '%d' "$new_size") 
 
 # --- 3. Pre-compress shipped artifacts ------------------------------------
 # So nginx's gzip_static / brotli_static can serve them without per-request CPU.
+# brotli -q 11 is single-threaded per file, so fan out across files in parallel.
 compress_targets=(index.wasm index.js index.pck)
 cd build/web
+have_brotli=0
+command -v brotli >/dev/null 2>&1 && have_brotli=1
 for f in "${compress_targets[@]}"; do
     [[ -f "$f" ]] || continue
-    gzip -9 -k -f "$f"
-    if command -v brotli >/dev/null 2>&1; then
-        brotli -q 11 -k -f "$f"
+    gzip -9 -k -f "$f" &
+    if (( have_brotli )); then
+        brotli -q 11 -k -f "$f" &
     fi
 done
+wait
 cd - >/dev/null
 
 ls -lh build/web/index.wasm build/web/index.wasm.gz build/web/index.wasm.br 2>/dev/null || true
