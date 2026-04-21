@@ -375,10 +375,16 @@ func _on_shell_hit(shell, victim_id: int, hit_point: Vector3, part_id: int, obst
         if scoring_team >= 0 and _team_kills[scoring_team] >= MATCH_KILL_TARGET:
             _restart_match(scoring_team)
 
-# Hard reset after MATCH_KILL_TARGET: wipe scores, clear in-flight shells and
-# pending respawns, then respawn every tank (human + AI). Humans get a Respawn
-# packet so their client teleports prediction to the new spawn; AIs just get
-# the server-side reset and their new pos lands via the next snapshot.
+# Hard reset after MATCH_KILL_TARGET: wipe scores, regenerate the world (new
+# seed → new terrain + obstacle layout), clear in-flight shells, pending
+# respawns, and pickups, then respawn every tank (human + AI).
+#
+# Order matters. We broadcast PICKUP_CONSUMED for every live pickup *before*
+# MATCH_RESTART so clients despawn those nodes while they still have the old
+# pickup_ids, then MATCH_RESTART tells them to wipe terrain/obstacles and
+# rebuild from the new seed. Respawn packets follow so humans' prediction
+# teleports to the new spawn points; AIs just get their new pos in the next
+# snapshot.
 func _restart_match(winner_team: int) -> void:
     print("[Server] Match restart — team %d reached %d kills" % [winner_team, MATCH_KILL_TARGET])
     _team_kills[0] = 0
@@ -386,6 +392,27 @@ func _restart_match(winner_team: int) -> void:
     _respawns.clear()
     if _shell_sim:
         _shell_sim.clear()
+
+    # New seed — XOR with _tick so two restarts in the same wall-clock second
+    # still produce distinct worlds.
+    var new_seed: int = int(Time.get_unix_time_from_system()) ^ _tick
+    _world.regenerate(new_seed)
+    if _pickups:
+        # Rehook heightmap to the new world and collect a consumed-event per
+        # live pickup so clients can despawn them before the terrain swap
+        # (client's MATCH_RESTART handler also resets the pickup view, so
+        # this is defensive but keeps the PICKUP_CONSUMED contract intact).
+        var consumed: Array = _pickups.reset_for_new_world(_world.heightmap, _world.terrain_size)
+        for c in consumed:
+            var pc := Messages.PickupConsumed.new()
+            pc.pickup_id = int(c["pickup_id"])
+            pc.consumer_id = int(c["consumer_id"])
+            pc.kind = int(c["kind"])
+            _ws_server.broadcast(MessageType.PICKUP_CONSUMED, pc.encode())
+    var restart_msg := Messages.MatchRestart.new()
+    restart_msg.world_seed = new_seed
+    _ws_server.broadcast(MessageType.MATCH_RESTART, restart_msg.encode())
+
     for pid in _world.tanks.keys():
         _respawn_player(pid)
 

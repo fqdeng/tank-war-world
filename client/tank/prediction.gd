@@ -23,6 +23,13 @@ func initialize(state: TankState, hm: PackedFloat32Array, terrain_size: int) -> 
     _heightmap = hm
     _terrain_size = terrain_size
 
+# Swap the heightmap reference without touching tank state — used on match
+# restart so terrain sampling hits the regenerated world, while the tank
+# itself keeps its identity and gets teleported via the trailing RESPAWN.
+func set_heightmap(hm: PackedFloat32Array, terrain_size: int) -> void:
+    _heightmap = hm
+    _terrain_size = terrain_size
+
 func set_obstacles(obstacles: Array, destroyed: Dictionary) -> void:
     _obstacles = obstacles
     _destroyed = destroyed

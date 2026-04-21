@@ -182,6 +182,8 @@ func _on_message(msg_type: int, payload: PackedByteArray) -> void:
             var pc = Messages.PickupConsumed.decode(payload)
             if _pickup_view:
                 _pickup_view.consume(pc.pickup_id)
+        MessageType.MATCH_RESTART:
+            _handle_match_restart(Messages.MatchRestart.decode(payload))
         MessageType.PONG:
             _handle_pong(Messages.Pong.decode(payload))
 
@@ -212,6 +214,37 @@ func _handle_connect_ack(msg) -> void:
     _hud.set_status("CONNECTED")
     _hud.set_player_id(msg.player_id)
     _hud.radar.set_my_team(msg.team)
+
+# Server broadcast after a team reaches MATCH_KILL_TARGET. Wipe the world
+# and rebuild from the new seed. Pickup nodes are already despawned by the
+# PICKUP_CONSUMED bursts that preceded this, but we reset the view
+# defensively. Tanks keep their identity; the trailing RESPAWN packet will
+# teleport prediction to the new spawn and remote tanks follow snapshots.
+# Shell visuals are cleared because their server authority (_shell_sim) was
+# just wiped, so no HIT will ever arrive to free them.
+func _handle_match_restart(msg) -> void:
+    print("[Client] MATCH_RESTART: seed=%d" % msg.world_seed)
+    for shell_id in _shells.keys():
+        var h: Node3D = _shells[shell_id]
+        if is_instance_valid(h):
+            h.queue_free()
+    _shells.clear()
+    if _pickup_view:
+        _pickup_view.reset()
+    _obstacle_builder.reset()
+    _terrain_builder.reset()
+    _terrain_builder.build(msg.world_seed)
+    _obstacle_builder.build(msg.world_seed, _terrain_builder.heightmap, _terrain_builder.terrain_size)
+    _camera.set_heightmap(_terrain_builder.heightmap, _terrain_builder.terrain_size)
+    if _pickup_view:
+        _pickup_view.set_terrain(_terrain_builder.heightmap, _terrain_builder.terrain_size)
+    if _prediction:
+        _prediction.set_heightmap(_terrain_builder.heightmap, _terrain_builder.terrain_size)
+        _prediction.set_obstacles(_obstacle_builder.obstacles, _obstacle_builder.destroyed_ids)
+    for pid in _tanks.keys():
+        var v = _tanks[pid]
+        if v and v.has_method("set_terrain"):
+            v.set_terrain(_terrain_builder.heightmap, _terrain_builder.terrain_size)
 
 func _handle_snapshot(msg) -> void:
     if _hud != null:

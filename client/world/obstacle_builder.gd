@@ -10,6 +10,18 @@ var _nodes: Dictionary = {}
 var obstacles: Array = []
 var destroyed_ids: Dictionary = {}
 
+# Free every live obstacle node + wipe the obstacle/destroyed lists so build()
+# can be called again after a match restart. Skips the destruction tween
+# (which belongs on in-match kills) — match restart is a hard swap.
+func reset() -> void:
+    for id in _nodes.keys():
+        var n: Node3D = _nodes[id]
+        if is_instance_valid(n):
+            n.queue_free()
+    _nodes.clear()
+    obstacles = []
+    destroyed_ids = {}
+
 func build(world_seed: int, heightmap: PackedFloat32Array, terrain_size: int, already_destroyed: PackedInt32Array = PackedInt32Array()) -> void:
     destroyed_ids = {}
     for oid in already_destroyed:

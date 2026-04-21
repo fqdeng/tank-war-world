@@ -6,6 +6,14 @@ const TerrainGenerator = preload("res://shared/world/terrain_generator.gd")
 var heightmap: PackedFloat32Array
 var terrain_size: int
 
+# Drop any previously-built terrain mesh so build() can be called again after
+# a match restart without stacking meshes.
+func reset() -> void:
+    for child in get_children():
+        child.queue_free()
+    heightmap = PackedFloat32Array()
+    terrain_size = 0
+
 func build(world_seed: int) -> void:
     terrain_size = Constants.WORLD_SIZE_M
     heightmap = TerrainGenerator.generate_heightmap(world_seed, terrain_size)

@@ -108,6 +108,24 @@ func active_pickups() -> Array:
 func force_refresh_now() -> void:
     _refresh_remaining = 0.0
 
+# Wipe all in-flight pickups and return a consumed-event list so the caller
+# can broadcast PICKUP_CONSUMED for each (clients need this to despawn the
+# nodes before the terrain underneath gets swapped). Also resets the refresh
+# timer so the next step() spawns a fresh batch against the new heightmap.
+func reset_for_new_world(new_heightmap: PackedFloat32Array, new_terrain_size: int) -> Array:
+    var consumed: Array = []
+    for pid in pickups.keys():
+        consumed.append({
+            "pickup_id": pid,
+            "consumer_id": 0,
+            "kind": int(pickups[pid]["kind"]),
+        })
+    pickups.clear()
+    _heightmap = new_heightmap
+    _terrain_size = new_terrain_size
+    _refresh_remaining = 0.0
+    return consumed
+
 func _spawn_one(kind: int) -> Dictionary:
     var pid: int = _next_id
     _next_id += 1

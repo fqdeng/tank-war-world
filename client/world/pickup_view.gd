@@ -36,6 +36,15 @@ func set_terrain(hm: PackedFloat32Array, size: int) -> void:
     _heightmap = hm
     _terrain_size = size
 
+# Drop every live pickup node without playing the consume tween — used on
+# match restart to clear the field before the new terrain is swapped in.
+func reset() -> void:
+    for pid in _nodes.keys():
+        var n: Node3D = _nodes[pid]
+        if is_instance_valid(n):
+            n.queue_free()
+    _nodes.clear()
+
 func spawn(pickup_id: int, kind: int, pos: Vector3) -> void:
     if _nodes.has(pickup_id):
         return
@@ -100,6 +109,7 @@ func _build_shield() -> Node3D:
     disc.bottom_radius = 0.85
     disc.height = 0.18
     mi.mesh = disc
+    mi.rotation = Vector3(PI / 2, 0, 0)  # stand the disc upright so the face reads as a shield, not a coin
     var mat := StandardMaterial3D.new()
     mat.albedo_color = Color(0.25, 0.7, 1.0)
     mat.emission_enabled = true

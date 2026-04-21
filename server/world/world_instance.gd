@@ -76,6 +76,22 @@ func _init(seed_: int = 0) -> void:
         Constants.TREE_COUNT,
     )
 
+# Rebuild terrain + obstacles against a new seed and clear per-match damage
+# state. Tanks, _next_player_id, and sim clock are intentionally preserved —
+# the match restart keeps the same player ids and connections, it only
+# reshuffles the playfield.
+func regenerate(new_seed: int) -> void:
+    world_seed = new_seed
+    heightmap = TerrainGenerator.generate_heightmap(world_seed, terrain_size)
+    obstacles = ObstaclePlacer.place(
+        world_seed, heightmap, terrain_size,
+        Constants.SMALL_ROCK_COUNT,
+        Constants.LARGE_ROCK_COUNT,
+        Constants.TREE_COUNT,
+    )
+    obstacle_hp.clear()
+    destroyed_obstacle_ids.clear()
+
 func allocate_player_id() -> int:
     var pid := _next_player_id
     _next_player_id += 1

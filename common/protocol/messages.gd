@@ -390,6 +390,25 @@ class PickupConsumed:
         m.kind = Codec.read_u8(buf, c)
         return m
 
+# ---- MatchRestart (server → all clients) ----
+# Broadcast when a team reaches MATCH_KILL_TARGET. Carries the new world_seed
+# so clients can wipe + regenerate terrain + obstacles. destroyed_obstacle_ids
+# is implicitly empty (server just regenerated the world). Pickups are wiped
+# by the server right before this send and respawned via PICKUP_SPAWNED.
+class MatchRestart:
+    var world_seed: int = 0
+
+    func encode() -> PackedByteArray:
+        var buf := PackedByteArray()
+        Codec.write_u32(buf, world_seed)
+        return buf
+
+    static func decode(buf: PackedByteArray) -> MatchRestart:
+        var m := MatchRestart.new()
+        var c := [0]
+        m.world_seed = Codec.read_u32(buf, c)
+        return m
+
 # ---- Ping (client → server, ~1 Hz) ----
 # Client stamps its local Time.get_ticks_msec() so server can echo it back.
 class Ping:
