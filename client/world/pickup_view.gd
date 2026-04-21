@@ -109,7 +109,6 @@ func _build_shield() -> Node3D:
     disc.bottom_radius = 0.85
     disc.height = 0.18
     mi.mesh = disc
-    mi.rotation = Vector3(PI / 2, 0, 0)  # stand the disc upright so the face reads as a shield, not a coin
     var mat := StandardMaterial3D.new()
     mat.albedo_color = Color(0.25, 0.7, 1.0)
     mat.emission_enabled = true
