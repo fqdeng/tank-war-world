@@ -210,6 +210,20 @@ func _handle_connect_ack(msg) -> void:
     add_child(_prediction)
     _prediction.initialize(ls, _terrain_builder.heightmap, _terrain_builder.terrain_size)
     _prediction.set_obstacles(_obstacle_builder.obstacles, _obstacle_builder.destroyed_ids)
+    # Prediction pushes the local tank out of other tanks' radii each physics
+    # tick. Sample the interp buffer at the current render time so the push
+    # matches what TankView is drawing (interp-delayed), not the freshest
+    # snapshot — otherwise the bump would fire before the player sees contact.
+    _prediction.set_other_tanks_provider(func() -> Array:
+        var out: Array = []
+        var now_ms: int = _estimated_server_now_ms()
+        for pid in _remote_interp:
+            var r = _remote_interp[pid].sample(now_ms)
+            if r == null:
+                continue
+            out.append({"id": pid, "pos": r["pos"], "alive": int(r["hp"]) > 0})
+        return out
+    )
     _input.set_enabled(true)
     _hud.set_status("CONNECTED")
     _hud.set_player_id(msg.player_id)

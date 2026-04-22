@@ -77,6 +77,16 @@ func _step_tick(dt: float) -> void:
             st.gun_pitch = clamp(float(_latest_input[pid].get("gun_pitch", st.gun_pitch)), deg_to_rad(-8.0), deg_to_rad(12.0))
             _spawn_shell(pid, st, st.turret_yaw, st.gun_pitch)
 
+    # Snapshot every alive tank's pre-tick position once. AI uses it to push
+    # out of other tanks deterministically (otherwise the push would depend on
+    # iteration order, since human poses get overwritten mid-loop by
+    # has_client_pose). Humans push themselves client-side, so this list only
+    # needs to be accurate enough for AIs to not clip into everyone else.
+    var tank_snap: Array = []
+    for pid in _world.tanks:
+        var s = _world.tanks[pid]
+        if s.alive:
+            tank_snap.append({"id": pid, "pos": s.pos, "alive": true})
     for pid in _world.tanks:
         var state = _world.tanks[pid]
         if not state.alive:
@@ -96,6 +106,11 @@ func _step_tick(dt: float) -> void:
             state.pos.x += push.x
             state.pos.z += push.z
             if push.length_squared() > 0.0001:
+                state.speed = 0.0
+            var tank_push: Vector3 = TankCollision.resolve_tank_push(state.pos, pid, tank_snap)
+            state.pos.x += tank_push.x
+            state.pos.z += tank_push.z
+            if tank_push.length_squared() > 0.0001:
                 state.speed = 0.0
         elif inp.get("has_client_pose", false):
             state.pos = inp["pos"]

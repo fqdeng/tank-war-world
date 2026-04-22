@@ -18,6 +18,12 @@ var _reconcile_threshold_sq: float = 0.25  # ~0.5m tolerance
 var _obstacles: Array = []
 var _destroyed: Dictionary = {}
 
+# Returns Array of {id:int, pos:Vector3, alive:bool} for every other tank the
+# local client knows about, sampled at the current render time so the push
+# matches what the player sees. Main client injects this; default is a no-op
+# so tests that construct a bare Prediction don't need the wiring.
+var _other_tanks_provider: Callable = Callable()
+
 func initialize(state: TankState, hm: PackedFloat32Array, terrain_size: int) -> void:
     _state = state
     _heightmap = hm
@@ -33,6 +39,9 @@ func set_heightmap(hm: PackedFloat32Array, terrain_size: int) -> void:
 func set_obstacles(obstacles: Array, destroyed: Dictionary) -> void:
     _obstacles = obstacles
     _destroyed = destroyed
+
+func set_other_tanks_provider(cb: Callable) -> void:
+    _other_tanks_provider = cb
 
 func mark_obstacle_destroyed(id: int) -> void:
     _destroyed[id] = true
@@ -70,6 +79,14 @@ func _apply_collision() -> void:
         _state.pos.z += push.z
         if push.length_squared() > 0.0001:
             _state.speed = 0.0
+    if _other_tanks_provider.is_valid():
+        var others: Array = _other_tanks_provider.call()
+        if others.size() > 0:
+            var tpush: Vector3 = TankCollision.resolve_tank_push(_state.pos, _state.player_id, others)
+            _state.pos.x += tpush.x
+            _state.pos.z += tpush.z
+            if tpush.length_squared() > 0.0001:
+                _state.speed = 0.0
 
 # On snapshot: sync only server-authoritative fields (hp, ammo).
 # Position/yaw/turret are client-authoritative — the server no longer corrects
