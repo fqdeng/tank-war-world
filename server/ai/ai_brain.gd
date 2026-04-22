@@ -24,8 +24,8 @@ var _stuck_grace_timer: float = 0.0
 var _prev_pos: Vector3 = Vector3.ZERO
 var _has_prev_pos: bool = false
 const STUCK_SPEED_THRESHOLD: float = 1.5
-const STUCK_TRIGGER_S: float = 1.2
-const UNSTICK_REVERSE_S: float = 1.2
+const STUCK_TRIGGER_S: float = 0.7
+const UNSTICK_REVERSE_S: float = 2.2
 
 # Cap how fast AI can traverse the turret / elevate the gun so it can't snap
 # onto a target in one tick. Before this, the brain set turret_yaw directly to
