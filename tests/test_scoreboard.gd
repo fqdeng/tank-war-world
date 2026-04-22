@@ -166,3 +166,18 @@ func test_on_death_friendly_kill_still_pays_enemy_assists() -> void:
     assert_eq(enemy_assister["assists"], 1)
     assert_eq(friendly_killer["kills"], 0)
     assert_eq(victim["deaths"], 1)
+
+func test_reset_clears_all_rows_and_damager_state() -> void:
+    var sb = Scoreboard.new()
+    sb.on_player_joined(1, 0, "A", false)
+    sb.on_player_joined(2, 1, "B", false)
+    sb.on_hit(1, 2, 100, 1_000)
+    sb.on_death(1, 2, 2_000)
+    assert_eq(sb.snapshot().size(), 2)
+    sb.reset()
+    assert_eq(sb.snapshot().size(), 0)
+    # Re-joining after reset gives a clean row.
+    sb.on_player_joined(1, 0, "A", false)
+    var row: Dictionary = _find_row(sb.snapshot(), 1)
+    assert_eq(row["kills"], 0)
+    assert_eq(row["hits"], 0)
