@@ -46,6 +46,31 @@ func on_hit(shooter_id: int, victim_id: int, damage: int, now_ms: int) -> void:
     shooter["damage"] += damage
     victim["recent_damagers"][shooter_id] = now_ms
 
+# Called from tick_loop when a tank is destroyed. Credits kill (if the killer
+# is on the opposing team and known to the scoreboard), always increments the
+# victim's death count, pays out assists to any *other* recent damagers whose
+# last-damage timestamp is within ASSIST_WINDOW_MS, and clears the victim's
+# damager list so a subsequent death doesn't re-credit the same attackers.
+func on_death(killer_id: int, victim_id: int, now_ms: int) -> void:
+    if not _rows.has(victim_id):
+        return
+    var victim: Dictionary = _rows[victim_id]
+    if killer_id != 0 and _rows.has(killer_id):
+        var killer: Dictionary = _rows[killer_id]
+        if killer["team"] != victim["team"]:
+            killer["kills"] += 1
+    victim["deaths"] += 1
+    var damagers: Dictionary = victim["recent_damagers"]
+    for aid in damagers.keys():
+        if aid == killer_id:
+            continue
+        if not _rows.has(aid):
+            continue
+        var last_ms: int = damagers[aid]
+        if now_ms - last_ms <= ASSIST_WINDOW_MS:
+            _rows[aid]["assists"] += 1
+    victim["recent_damagers"] = {}
+
 func reset() -> void:
     _rows.clear()
 
