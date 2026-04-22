@@ -13,6 +13,7 @@ const AIBrain = preload("res://server/ai/ai_brain.gd")
 const TankCollision = preload("res://shared/world/tank_collision.gd")
 const NameSanitizer = preload("res://server/util/name_sanitizer.gd")
 const PickupManager = preload("res://server/sim/pickup_manager.gd")
+const Scoreboard = preload("res://server/sim/scoreboard.gd")
 
 const TARGET_TOTAL_TANKS: int = 10  # fill with AI until this many alive tanks exist
 const MATCH_KILL_TARGET: int = 100  # first team to this many kills wins — game restarts
@@ -28,6 +29,10 @@ var _latest_input: Dictionary = {}
 var _respawns: Dictionary = {}
 var _ai_brains: Dictionary = {}  # player_id → AIBrain
 var _team_kills: Dictionary = {0: 0, 1: 0}  # team → destroyed enemies
+var _scoreboard: Scoreboard
+# Tick-based accumulator for 1 Hz SCOREBOARD broadcast (TICK_RATE_HZ ticks/s).
+var _scoreboard_accum_ticks: int = 0
+const _SCOREBOARD_BROADCAST_EVERY_TICKS: int = 20  # = 1 s @ 20 Hz
 
 func set_world(w) -> void:
     _world = w
@@ -38,6 +43,7 @@ func set_world(w) -> void:
         _on_shell_hit(shell, victim_id, point, part_id, obstacle_id, obstacle_kind))
     _pickups = PickupManager.new()
     _pickups.setup(w.heightmap, w.terrain_size)
+    _scoreboard = Scoreboard.new()
 
 func set_ws_server(s) -> void:
     _ws_server = s
@@ -192,6 +198,23 @@ func _step_tick(dt: float) -> void:
     snap.team_kills_0 = int(_team_kills.get(0, 0))
     snap.team_kills_1 = int(_team_kills.get(1, 0))
     _ws_server.broadcast(MessageType.SNAPSHOT, snap.encode())
+    _scoreboard_accum_ticks += 1
+    if _scoreboard_accum_ticks >= _SCOREBOARD_BROADCAST_EVERY_TICKS:
+        _scoreboard_accum_ticks = 0
+        var sb_msg := Messages.Scoreboard.new()
+        for row in _scoreboard.snapshot():
+            var e := Messages.ScoreboardEntry.new()
+            e.player_id = int(row["player_id"])
+            e.team = int(row["team"])
+            e.is_ai = bool(row["is_ai"])
+            e.display_name = String(row["display_name"])
+            e.kills = int(row["kills"])
+            e.deaths = int(row["deaths"])
+            e.assists = int(row["assists"])
+            e.hits = int(row["hits"])
+            e.damage = int(row["damage"])
+            sb_msg.entries.append(e)
+        _ws_server.broadcast(MessageType.SCOREBOARD, sb_msg.encode())
 
 func _on_client_connected(peer_id: int, connect_msg) -> void:
     var pid: int = _world.allocate_player_id()
@@ -219,6 +242,7 @@ func _on_client_connected(peer_id: int, connect_msg) -> void:
             pe.pos = entry["pos"]
             ack.pickups.append(pe)
     _ws_server.send_to_peer(peer_id, MessageType.CONNECT_ACK, ack.encode())
+    _scoreboard.on_player_joined(pid, team, state.display_name, false)
 
 func _on_client_disconnected(peer_id: int) -> void:
     var pid: int = _ws_server.player_id_for_peer(peer_id)
@@ -305,6 +329,7 @@ func _spawn_ai(team: int) -> void:
     var brain := AIBrain.new()
     brain.setup(pid, _world)
     _ai_brains[pid] = brain
+    _scoreboard.on_player_joined(pid, team, st.display_name, true)
 
 func _despawn_ai_in_team(team: int) -> void:
     for pid in _ai_brains.keys():
@@ -364,6 +389,7 @@ func _on_shell_hit(shell, victim_id: int, hit_point: Vector3, part_id: int, obst
         _ws_server.broadcast(MessageType.HIT, hit_msg_i.encode())
         return
     var result = PartDamage.apply(victim, part_id, Constants.TANK_FIRE_DAMAGE)
+    _scoreboard.on_hit(shell.shooter_id, victim_id, int(round(result.actual_damage)), Time.get_ticks_msec())
     var hit_msg := Messages.Hit.new()
     hit_msg.shell_id = shell.id
     hit_msg.shooter_id = shell.shooter_id
@@ -375,6 +401,7 @@ func _on_shell_hit(shell, victim_id: int, hit_point: Vector3, part_id: int, obst
     _ws_server.broadcast(MessageType.HIT, hit_msg.encode())
     if result.tank_just_destroyed:
         _respawns[victim_id] = Constants.RESPAWN_COOLDOWN_S
+        _scoreboard.on_death(shell.shooter_id, victim_id, Time.get_ticks_msec())
         # Team kill scoring: only credit if the shooter still exists and is on
         # the opposing team (no team-kill credit, no credit for orphan shells).
         var scoring_team: int = -1
@@ -404,6 +431,7 @@ func _restart_match(winner_team: int) -> void:
     print("[Server] Match restart — team %d reached %d kills" % [winner_team, MATCH_KILL_TARGET])
     _team_kills[0] = 0
     _team_kills[1] = 0
+    _scoreboard.reset()
     _respawns.clear()
     if _shell_sim:
         _shell_sim.clear()
