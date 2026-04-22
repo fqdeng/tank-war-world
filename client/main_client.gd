@@ -33,10 +33,16 @@ var _hud
 var _tanks: Dictionary = {}  # player_id → TankView
 var _shells: Dictionary = {}  # shell_id → Node3D (visual shell)
 var _my_player_id: int = 0
+# Latest SCOREBOARD payload, cached between packets so the overlay can render
+# immediately on Tab press. Cleared on MATCH_RESTART; refreshed at 1 Hz from
+# the server.
+var _latest_scoreboard_entries: Array = []
+var _my_team: int = 0
 var _prediction  # Prediction for local tank
 var _remote_interp: Dictionary = {}  # player_id → Interpolation
 var _scope_cam
 var _scope_overlay
+var _scoreboard_overlay  # CanvasLayer; created in _on_name_chosen
 var _in_scope: bool = false
 # Throttled counter for [Scope] diagnostics; prints every N render frames while in scope.
 var _scope_log_counter: int = 0
@@ -186,9 +192,12 @@ func _on_message(msg_type: int, payload: PackedByteArray) -> void:
             _handle_match_restart(Messages.MatchRestart.decode(payload))
         MessageType.PONG:
             _handle_pong(Messages.Pong.decode(payload))
+        MessageType.SCOREBOARD:
+            _handle_scoreboard(Messages.Scoreboard.decode(payload))
 
 func _handle_connect_ack(msg) -> void:
     _my_player_id = msg.player_id
+    _my_team = msg.team
     print("[Client] CONNECT_ACK: player_id=%d team=%d seed=%d spawn=%s" % [msg.player_id, msg.team, msg.world_seed, msg.spawn_pos])
     _terrain_builder.build(msg.world_seed)
     _obstacle_builder.build(msg.world_seed, _terrain_builder.heightmap, _terrain_builder.terrain_size, msg.destroyed_obstacle_ids)
@@ -243,6 +252,9 @@ func _handle_match_restart(msg) -> void:
         if is_instance_valid(h):
             h.queue_free()
     _shells.clear()
+    _latest_scoreboard_entries = []
+    if _scoreboard_overlay != null:
+        _scoreboard_overlay.set_data([], _my_team, _my_player_id)
     if _pickup_view:
         _pickup_view.reset()
     _obstacle_builder.reset()
@@ -496,6 +508,11 @@ func _handle_death(msg) -> void:
             _scope_overlay.get_node("Reticle").show_kill(int(msg.victim_id))
         if _hud:
             _hud.show_kill(int(msg.victim_id))
+
+func _handle_scoreboard(msg) -> void:
+    _latest_scoreboard_entries = msg.entries
+    if _scoreboard_overlay != null:
+        _scoreboard_overlay.set_data(_latest_scoreboard_entries, _my_team, _my_player_id)
 
 func _handle_respawn(msg) -> void:
     if msg.player_id == _my_player_id:
