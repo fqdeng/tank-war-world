@@ -148,3 +148,21 @@ func test_on_death_clears_victim_damager_list_so_next_death_is_clean() -> void:
     sb.on_death(1, 2, 3_000)   # second death from nothing — no extra assist
     var assister: Dictionary = _find_row(sb.snapshot(), 3)
     assert_eq(assister["assists"], 1)
+
+func test_on_death_friendly_kill_still_pays_enemy_assists() -> void:
+    # Spec invariant: a friendly-fire kill denies kill-credit to the team-killer,
+    # but enemy damagers in the assist window still get their assist counted.
+    # Without this test, an accidental early-return on friendly-fire would pass
+    # all other tests but silently break the spec.
+    var sb = Scoreboard.new()
+    sb.on_player_joined(1, 0, "A", false)  # friendly "killer" (team 0)
+    sb.on_player_joined(2, 0, "B", false)  # victim, same team as 1
+    sb.on_player_joined(3, 1, "C", false)  # enemy damager (team 1)
+    sb.on_hit(3, 2, 40, 1_000)
+    sb.on_death(1, 2, 2_000)
+    var enemy_assister: Dictionary = _find_row(sb.snapshot(), 3)
+    var friendly_killer: Dictionary = _find_row(sb.snapshot(), 1)
+    var victim: Dictionary = _find_row(sb.snapshot(), 2)
+    assert_eq(enemy_assister["assists"], 1)
+    assert_eq(friendly_killer["kills"], 0)
+    assert_eq(victim["deaths"], 1)
