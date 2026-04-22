@@ -16,7 +16,7 @@ const NOISE_FREQUENCY: float = 1.0 / 384.0
 # Map boundary mountain ring — prevents players from leaving the playable area
 const BORDER_MOUNTAIN_BAND_M: float = 80.0   # ramp zone near the edge
 const BORDER_MOUNTAIN_MAX_H: float = 35.0    # peak height at the edge
-const PLAYABLE_MARGIN_M: float = 55.0        # tank pos is clamped inside [margin, size-margin]
+const PLAYABLE_MARGIN_M: float = 20.0        # tank pos is clamped inside [margin, size-margin] — sits near the top of the border mountain ring (d_edge=20 ≈ 20m up the 35m peak)
 
 # Obstacles (counts in Plan 01 are reduced for performance headroom)
 const SMALL_ROCK_COUNT: int = 200
