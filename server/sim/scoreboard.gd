@@ -30,6 +30,22 @@ func on_player_joined(pid: int, team: int, display_name: String, is_ai: bool) ->
         "recent_damagers": {},
     }
 
+# Called from tick_loop on every HIT where the victim is a real tank. Ignores
+# friendly fire and zero-damage events (shield / spawn-invuln / destroyed
+# parts) so the scoreboard tracks *useful* combat contribution only.
+func on_hit(shooter_id: int, victim_id: int, damage: int, now_ms: int) -> void:
+    if damage <= 0:
+        return
+    if not _rows.has(shooter_id) or not _rows.has(victim_id):
+        return
+    var shooter: Dictionary = _rows[shooter_id]
+    var victim: Dictionary = _rows[victim_id]
+    if shooter["team"] == victim["team"]:
+        return
+    shooter["hits"] += 1
+    shooter["damage"] += damage
+    victim["recent_damagers"][shooter_id] = now_ms
+
 func reset() -> void:
     _rows.clear()
 
