@@ -19,4 +19,5 @@ enum {
     PICKUP_SPAWNED = 13,      # server → all clients
     PICKUP_CONSUMED = 14,     # server → all clients
     MATCH_RESTART = 15,       # server → all clients (new world seed after kill target reached)
+    SCOREBOARD = 16,     # server → all clients (~1 Hz full-table broadcast)
 }

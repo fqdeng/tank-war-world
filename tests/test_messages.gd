@@ -219,3 +219,45 @@ func test_snapshot_carries_shield_invuln() -> void:
     var bytes := msg.encode()
     var decoded := Messages.Snapshot.decode(bytes)
     assert_almost_eq(decoded.tanks[0].shield_invuln_remaining, 12.5, 0.001)
+
+func test_scoreboard_roundtrip() -> void:
+    var msg := Messages.Scoreboard.new()
+    var e1 := Messages.ScoreboardEntry.new()
+    e1.player_id = 7
+    e1.team = 0
+    e1.is_ai = false
+    e1.display_name = "Alice"
+    e1.kills = 12
+    e1.deaths = 5
+    e1.assists = 3
+    e1.hits = 27
+    e1.damage = 6540
+    var e2 := Messages.ScoreboardEntry.new()
+    e2.player_id = 42
+    e2.team = 1
+    e2.is_ai = true
+    e2.display_name = "P42"
+    e2.kills = 4
+    e2.deaths = 9
+    e2.assists = 1
+    e2.hits = 11
+    e2.damage = 2410
+    msg.entries = [e1, e2]
+    var bytes := msg.encode()
+    var decoded := Messages.Scoreboard.decode(bytes)
+    assert_eq(decoded.entries.size(), 2)
+    assert_eq(decoded.entries[0].player_id, 7)
+    assert_eq(decoded.entries[0].team, 0)
+    assert_eq(decoded.entries[0].is_ai, false)
+    assert_eq(decoded.entries[0].display_name, "Alice")
+    assert_eq(decoded.entries[0].kills, 12)
+    assert_eq(decoded.entries[0].damage, 6540)
+    assert_eq(decoded.entries[1].is_ai, true)
+    assert_eq(decoded.entries[1].display_name, "P42")
+    assert_eq(decoded.entries[1].damage, 2410)
+
+func test_scoreboard_roundtrip_empty() -> void:
+    var msg := Messages.Scoreboard.new()
+    var bytes := msg.encode()
+    var decoded := Messages.Scoreboard.decode(bytes)
+    assert_eq(decoded.entries.size(), 0)

@@ -444,3 +444,55 @@ class Pong:
         m.client_time_ms = Codec.read_u32(buf, c)
         m.server_time_ms = Codec.read_u32(buf, c)
         return m
+
+# ---- Scoreboard (server → all clients, ~1 Hz) ----
+# Full-table broadcast. Client replaces its cached copy wholesale on receive.
+# Rows persist across player disconnects / AI despawn (frozen stats still show
+# in the Tab overlay) and are only cleared on MATCH_RESTART (server calls
+# Scoreboard.reset()).
+class ScoreboardEntry:
+    var player_id: int = 0
+    var team: int = 0
+    var is_ai: bool = false
+    var display_name: String = ""
+    var kills: int = 0
+    var deaths: int = 0
+    var assists: int = 0
+    var hits: int = 0
+    var damage: int = 0
+
+class Scoreboard:
+    var entries: Array = []  # Array[ScoreboardEntry]
+
+    func encode() -> PackedByteArray:
+        var buf := PackedByteArray()
+        Codec.write_u16(buf, entries.size())
+        for e in entries:
+            Codec.write_u16(buf, e.player_id)
+            Codec.write_u8(buf, e.team)
+            Codec.write_u8(buf, 1 if e.is_ai else 0)
+            Codec.write_string(buf, e.display_name)
+            Codec.write_u16(buf, e.kills)
+            Codec.write_u16(buf, e.deaths)
+            Codec.write_u16(buf, e.assists)
+            Codec.write_u16(buf, e.hits)
+            Codec.write_u32(buf, e.damage)
+        return buf
+
+    static func decode(buf: PackedByteArray) -> Scoreboard:
+        var m := Scoreboard.new()
+        var c := [0]
+        var n := Codec.read_u16(buf, c)
+        for i in n:
+            var e := ScoreboardEntry.new()
+            e.player_id = Codec.read_u16(buf, c)
+            e.team = Codec.read_u8(buf, c)
+            e.is_ai = Codec.read_u8(buf, c) != 0
+            e.display_name = Codec.read_string(buf, c)
+            e.kills = Codec.read_u16(buf, c)
+            e.deaths = Codec.read_u16(buf, c)
+            e.assists = Codec.read_u16(buf, c)
+            e.hits = Codec.read_u16(buf, c)
+            e.damage = Codec.read_u32(buf, c)
+            m.entries.append(e)
+        return m
