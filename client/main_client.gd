@@ -17,6 +17,7 @@ const Interpolation = preload("res://client/tank/interpolation.gd")
 const TankState = preload("res://shared/tank/tank_state.gd")
 const ScopeCam = preload("res://client/camera/scope_cam.gd")
 const ScopeOverlay = preload("res://client/hud/scope_overlay.tscn")
+const ScoreboardOverlay = preload("res://client/hud/scoreboard.tscn")
 const TerrainGenerator = preload("res://shared/world/terrain_generator.gd")
 const SoundBank = preload("res://client/audio/sound_bank.gd")
 
@@ -143,6 +144,8 @@ func _on_name_chosen(player_name: String) -> void:
     add_child(_hud)
     _scope_overlay = ScopeOverlay.instantiate()
     add_child(_scope_overlay)
+    _scoreboard_overlay = ScoreboardOverlay.instantiate()
+    add_child(_scoreboard_overlay)
     _ws = WSClient.new()
     add_child(_ws)
     _ws.connected.connect(_on_connected)
@@ -720,3 +723,15 @@ func _handle_pong(msg) -> void:
     var delay: int = int(2.5 * Constants.TICK_INTERVAL * 1000.0 + 2.5 * _rtt_var_ms)
     for pid in _remote_interp:
         _remote_interp[pid].set_delay_ms(delay)
+
+# Tab is hold-to-view. We listen in _unhandled_input (not tank_input.gd) so it
+# works even while the pointer isn't locked (e.g. during respawn or after Esc).
+# ev.echo is guarded so the held-down repeat doesn't toggle off.
+func _unhandled_input(ev: InputEvent) -> void:
+    if ev is InputEventKey and ev.keycode == KEY_TAB and not ev.echo:
+        if _scoreboard_overlay != null:
+            if ev.pressed:
+                _scoreboard_overlay.set_data(_latest_scoreboard_entries, _my_team, _my_player_id)
+                _scoreboard_overlay.visible = true
+            else:
+                _scoreboard_overlay.visible = false
