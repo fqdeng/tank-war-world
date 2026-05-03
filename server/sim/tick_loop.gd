@@ -458,6 +458,9 @@ func _restart_match(winner_team: int) -> void:
 
     for pid in _world.tanks.keys():
         _respawn_player(pid)
+        # Re-register all players (human + AI) to the scoreboard after reset
+        var state = _world.tanks[pid]
+        _scoreboard.on_player_joined(pid, state.team, state.display_name, state.is_ai)
 
 func _respawn_player(player_id: int) -> void:
     if not _world.tanks.has(player_id):
